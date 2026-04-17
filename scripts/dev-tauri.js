@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+// 开发模式前置脚本 - 链接截图插件源码后启动 vite dev，退出时自动清理
 import { spawn } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -7,80 +9,81 @@ import { existsSync } from 'node:fs'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const rootDir = path.resolve(__dirname, '..')
-
 const isWin = process.platform === 'win32'
+const npmCmd = isWin ? 'npm.cmd' : 'npm'
 
-function run(cwd, commandLine) {
-  const child = isWin
-    ? spawn('cmd.exe', ['/d', '/s', '/c', commandLine], {
-        cwd,
-        stdio: 'inherit',
-        env: process.env,
-      })
-    : spawn('sh', ['-lc', commandLine], {
-        cwd,
-        stdio: 'inherit',
-        env: process.env,
-      })
+// 截图插件路径常量
+const SCREENSHOT_PLUGIN_SRC = path.join(
+  rootDir, 'src-tauri', 'plugins', 'screenshot-suite', 'web', 'windows', 'screenshot'
+)
+const SCREENSHOT_MAIN_PROJECT = path.join(rootDir, 'src', 'windows', 'screenshot')
+const SCREENSHOT_PLUGIN_PACKAGE_JSON = path.join(
+  rootDir, 'src-tauri', 'plugins', 'screenshot-suite', 'web', 'package.json'
+)
 
-  child.on('error', (err) => {
+// 检查截图插件是否可用（社区版不可用）
+function isScreenshotPluginAvailable(isCommunity) {
+  return !isCommunity && existsSync(SCREENSHOT_PLUGIN_PACKAGE_JSON)
+}
+
+// 通过符号链接将截图插件源码链接到主项目
+async function linkScreenshotSource() {
+  if (!existsSync(SCREENSHOT_PLUGIN_SRC)) {
+    return false
+  }
+
+  if (existsSync(SCREENSHOT_MAIN_PROJECT)) {
+    await fs.rm(SCREENSHOT_MAIN_PROJECT, { recursive: true, force: true })
+  }
+
+  if (isWin) {
+    await fs.symlink(SCREENSHOT_PLUGIN_SRC, SCREENSHOT_MAIN_PROJECT, 'junction')
+  } else {
+    await fs.symlink(SCREENSHOT_PLUGIN_SRC, SCREENSHOT_MAIN_PROJECT, 'dir')
+  }
+
+  return true
+}
+
+// 清理截图插件符号链接
+async function unlinkScreenshotSource() {
+  if (existsSync(SCREENSHOT_MAIN_PROJECT)) {
+    await fs.rm(SCREENSHOT_MAIN_PROJECT, { recursive: true, force: true })
+  }
+}
+
+let childProcess = null
+
+async function main() {
+  const isCommunity = process.env.QC_COMMUNITY === '1'
+  const hasScreenshot = isScreenshotPluginAvailable(isCommunity)
+
+  if (hasScreenshot) {
+    await linkScreenshotSource()
+  }
+
+  childProcess = spawn(npmCmd, ['run', 'dev'], {
+    cwd: rootDir,
+    stdio: 'inherit',
+    env: process.env,
+    shell: true,
+  })
+
+  childProcess.on('error', (err) => {
     console.error(err)
     process.exit(1)
   })
 
-  child.on('exit', (code) => {
+  childProcess.on('exit', (code) => {
     if (code && code !== 0) {
       process.exit(code)
     }
   })
-
-  return child
 }
 
-async function linkScreenshotSource() {
-  const screenshotPluginSrc = path.join(rootDir, 'src-tauri', 'plugins', 'screenshot-suite', 'web', 'windows', 'screenshot')
-  const mainProjectScreenshot = path.join(rootDir, 'src', 'windows', 'screenshot')
-  
-  if (!existsSync(screenshotPluginSrc)) {
-    return false
-  }
-  
-  if (existsSync(mainProjectScreenshot)) {
-    await fs.rm(mainProjectScreenshot, { recursive: true, force: true })
-  }
-  
-  if (process.platform === 'win32') {
-    await fs.symlink(screenshotPluginSrc, mainProjectScreenshot, 'junction')
-  } else {
-    await fs.symlink(screenshotPluginSrc, mainProjectScreenshot, 'dir')
-  }
-  return true
-}
-
-async function unlinkScreenshotSource() {
-  const mainProjectScreenshot = path.join(rootDir, 'src', 'windows', 'screenshot')
-  
-  if (existsSync(mainProjectScreenshot)) {
-    await fs.rm(mainProjectScreenshot, { recursive: true, force: true })
-  }
-}
-
-let host = null
-
-async function main() {
-  const isCommunity = process.env.QC_COMMUNITY === '1'
-  const screenshotWebDir = path.join(rootDir, 'src-tauri', 'plugins', 'screenshot-suite', 'web')
-  const hasScreenshotPlugin = !isCommunity && existsSync(path.join(screenshotWebDir, 'package.json'))
-
-  if (hasScreenshotPlugin) {
-    await linkScreenshotSource()
-  }
-
-  host = run(rootDir, 'npm run dev')
-}
-
+// 终止子进程并清理符号链接
 function shutdown() {
-  host?.kill()
+  childProcess?.kill()
   unlinkScreenshotSource().catch(console.error)
 }
 

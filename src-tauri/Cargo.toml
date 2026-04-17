@@ -84,7 +84,8 @@ windows = { version = "0.62", features = [
 ] }
 
 [features]
-default = ["gpu-image-viewer", "screenshot-suite"]
+default = ["full"]
+full = ["dep:gpu-image-viewer", "dep:screenshot-suite"]
 gpu-image-viewer = ["dep:gpu-image-viewer"]
 screenshot-suite = ["dep:screenshot-suite"]
 custom-protocol = ["tauri/custom-protocol"]

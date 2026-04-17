@@ -25,7 +25,6 @@
       "identifier": "fs:scope",
       "allow": [{ "path": "**" }]
     },
-    "dialog:allow-save",
-    "screenshot-suite:default"
+    "dialog:allow-save"
   ]
 }

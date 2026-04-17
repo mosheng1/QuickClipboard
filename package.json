@@ -9,9 +9,9 @@
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:dev:no-watch": "tauri dev --no-watch",
-    "tauri:dev:community": "node scripts/community-build.js --dev",
+    "tauri:dev:community": "node scripts/community-build.js --dev --community",
     "tauri:build": "tauri build",
-    "tauri:build:community": "node scripts/community-build.js"
+    "tauri:build:community": "node scripts/community-build.js --community"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.9.4",
