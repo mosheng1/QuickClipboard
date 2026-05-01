@@ -1,6 +1,6 @@
 [package]
 name = "QuickClipboard"
-version = "0.3.1"
+version = "0.4.0"
 description = "一个功能强大的剪贴板管理工具，帮助您更高效地管理和使用剪贴板内容"
 authors = ["MoSheng"]
 edition = "2021"

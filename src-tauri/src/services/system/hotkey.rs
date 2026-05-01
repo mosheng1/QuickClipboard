@@ -149,20 +149,6 @@ fn parse_shortcut(shortcut_str: &str) -> Result<Shortcut, String> {
         .map_err(|e| format!("解析快捷键失败: {}", e))
 }
 
-fn ensure_normal_mode_for_hotkey(app: &AppHandle, action_name: &str) -> Result<bool, String> {
-    if !crate::services::low_memory::is_low_memory_mode() {
-        return Ok(true);
-    }
-
-    if !crate::get_settings().auto_exit_low_memory_mode {
-        return Ok(false);
-    }
-
-    crate::services::low_memory::exit_low_memory_mode(app)
-        .map_err(|e| format!("{}前自动退出低占用模式失败: {}", action_name, e))?;
-    Ok(true)
-}
-
 pub fn register_shortcut<F>(id: &str, shortcut_str: &str, handler: F) -> Result<(), String>
 where
     F: Fn(&AppHandle) + Send + Sync + 'static,
@@ -312,7 +298,7 @@ pub fn register_quickpaste_hotkey(shortcut_str: &str) -> Result<(), String> {
 #[cfg(feature = "screenshot-suite")]
 pub fn register_screenshot_hotkey(shortcut_str: &str) -> Result<(), String> {
     register_shortcut("screenshot", shortcut_str, |app| {
-        if !matches!(ensure_normal_mode_for_hotkey(app, "启动截图"), Ok(true)) {
+        if crate::services::low_memory::is_low_memory_mode() {
             return;
         }
 
@@ -333,7 +319,7 @@ pub fn register_screenshot_hotkey(_shortcut_str: &str) -> Result<(), String> {
 #[cfg(feature = "screenshot-suite")]
 pub fn register_screenshot_quick_save_hotkey(shortcut_str: &str) -> Result<(), String> {
     register_shortcut("screenshot_quick_save", shortcut_str, |app| {
-        if !matches!(ensure_normal_mode_for_hotkey(app, "启动快速保存截图"), Ok(true)) {
+        if crate::services::low_memory::is_low_memory_mode() {
             return;
         }
         if is_foreground_globally_disabled() {
@@ -353,7 +339,7 @@ pub fn register_screenshot_quick_save_hotkey(_shortcut_str: &str) -> Result<(), 
 #[cfg(feature = "screenshot-suite")]
 pub fn register_screenshot_quick_pin_hotkey(shortcut_str: &str) -> Result<(), String> {
     register_shortcut("screenshot_quick_pin", shortcut_str, |app| {
-        if !matches!(ensure_normal_mode_for_hotkey(app, "启动快速贴图截图"), Ok(true)) {
+        if crate::services::low_memory::is_low_memory_mode() {
             return;
         }
         if is_foreground_globally_disabled() {
@@ -373,7 +359,7 @@ pub fn register_screenshot_quick_pin_hotkey(_shortcut_str: &str) -> Result<(), S
 #[cfg(feature = "screenshot-suite")]
 pub fn register_screenshot_quick_ocr_hotkey(shortcut_str: &str) -> Result<(), String> {
     register_shortcut("screenshot_quick_ocr", shortcut_str, |app| {
-        if !matches!(ensure_normal_mode_for_hotkey(app, "启动快速OCR截图"), Ok(true)) {
+        if crate::services::low_memory::is_low_memory_mode() {
             return;
         }
         if is_foreground_globally_disabled() {
@@ -407,23 +393,6 @@ pub fn register_toggle_paste_with_format_hotkey(shortcut_str: &str) -> Result<()
         std::thread::spawn(move || {
             if let Err(e) = crate::commands::settings::toggle_paste_with_format(&app_clone) {
                 eprintln!("切换格式粘贴状态失败: {}", e);
-            }
-        });
-    })
-}
-
-pub fn register_toggle_low_memory_mode_hotkey(shortcut_str: &str) -> Result<(), String> {
-    register_shortcut("toggle_low_memory_mode", shortcut_str, |app| {
-        let app_clone = app.clone();
-        std::thread::spawn(move || {
-            let result = if crate::services::low_memory::is_low_memory_mode() {
-                crate::services::low_memory::exit_low_memory_mode(&app_clone)
-            } else {
-                crate::services::low_memory::enter_low_memory_mode(&app_clone)
-            };
-
-            if let Err(e) = result {
-                eprintln!("切换低占用模式失败: {}", e);
             }
         });
     })
@@ -714,91 +683,132 @@ fn clear_shortcut_status(id: &str) {
 
 pub fn reload_from_settings() -> Result<(), String> {
     let settings = crate::get_settings();
-    
+
     unregister_all();
     {
         let mut status_map = SHORTCUT_STATUS.lock();
         status_map.clear();
     }
-    
-    if settings.hotkeys_enabled {
-        if is_foreground_globally_disabled() {
-            return Ok(());
-        }
 
-        if !settings.toggle_shortcut.is_empty() {
-            if let Err(e) = register_toggle_hotkey(&settings.toggle_shortcut) {
-                eprintln!("注册主窗口切换快捷键失败: {}", e);
-            }
-        }
+    if !settings.hotkeys_enabled {
+        return Ok(());
+    }
 
-        if !settings.open_settings_shortcut.is_empty() {
-            if let Err(e) = register_open_settings_hotkey(&settings.open_settings_shortcut) {
-                eprintln!("注册打开设置快捷键失败: {}", e);
-            }
-        }
-        
-        if settings.quickpaste_enabled && !settings.quickpaste_shortcut.is_empty() {
-            if let Err(e) = register_quickpaste_hotkey(&settings.quickpaste_shortcut) {
-                eprintln!("注册预览窗口快捷键失败: {}", e);
-            }
-        }
-        
-        if settings.screenshot_enabled && !settings.screenshot_shortcut.is_empty() {
-            if let Err(e) = register_screenshot_hotkey(&settings.screenshot_shortcut) {
-                eprintln!("注册截图快捷键失败: {}", e);
-            }
-        }
-        
-        if settings.screenshot_enabled && !settings.screenshot_quick_save_shortcut.is_empty() {
-            if let Err(e) = register_screenshot_quick_save_hotkey(&settings.screenshot_quick_save_shortcut) {
-                eprintln!("注册快速保存截图快捷键失败: {}", e);
-            }
-        }
-        
-        if settings.screenshot_enabled && !settings.screenshot_quick_pin_shortcut.is_empty() {
-            if let Err(e) = register_screenshot_quick_pin_hotkey(&settings.screenshot_quick_pin_shortcut) {
-                eprintln!("注册快速贴图截图快捷键失败: {}", e);
-            }
-        }
-        
-        if settings.screenshot_enabled && !settings.screenshot_quick_ocr_shortcut.is_empty() {
-            if let Err(e) = register_screenshot_quick_ocr_hotkey(&settings.screenshot_quick_ocr_shortcut) {
-                eprintln!("注册快速OCR截图快捷键失败: {}", e);
-            }
-        }
-        
-        if !settings.toggle_clipboard_monitor_shortcut.is_empty() {
-            if let Err(e) = register_toggle_clipboard_monitor_hotkey(&settings.toggle_clipboard_monitor_shortcut) {
-                eprintln!("注册切换剪贴板监听快捷键失败: {}", e);
-            }
-        }
-        
-        if !settings.toggle_paste_with_format_shortcut.is_empty() {
-            if let Err(e) = register_toggle_paste_with_format_hotkey(&settings.toggle_paste_with_format_shortcut) {
-                eprintln!("注册切换格式粘贴快捷键失败: {}", e);
-            }
-        }
+    if is_foreground_globally_disabled() {
+        return Ok(());
+    }
 
-        if !settings.toggle_low_memory_mode_shortcut.is_empty() {
-            if let Err(e) = register_toggle_low_memory_mode_hotkey(&settings.toggle_low_memory_mode_shortcut) {
-                eprintln!("注册切换低占用模式快捷键失败: {}", e);
-            }
-        }
-        
-        if !settings.paste_plain_text_shortcut.is_empty() {
-            if let Err(e) = register_paste_plain_text_hotkey(&settings.paste_plain_text_shortcut) {
-                eprintln!("注册纯文本粘贴快捷键失败: {}", e);
-            }
-        }
-        
-        if settings.number_shortcuts && !settings.number_shortcuts_modifier.is_empty() {
-            if let Err(e) = register_number_shortcuts(&settings.number_shortcuts_modifier) {
-                eprintln!("注册数字快捷键失败: {}", e);
-            }
+    #[cfg(target_os = "linux")]
+    if super::wayland_shortcuts::is_wayland_session() {
+        reload_wayland_shortcuts(&settings);
+        return Ok(());
+    }
+
+    reload_x11_shortcuts(&settings)
+}
+
+#[cfg(target_os = "linux")]
+fn reload_wayland_shortcuts(settings: &crate::services::settings::AppSettings) {
+    use super::wayland_shortcuts::{register_wayland_shortcut, unregister_all_wayland_shortcuts};
+
+    if let Err(e) = unregister_all_wayland_shortcuts() {
+        eprintln!("清除 Wayland 快捷键失败: {}", e);
+    }
+
+    if !settings.toggle_shortcut.is_empty() {
+        if let Err(e) = register_wayland_shortcut("toggle", &settings.toggle_shortcut, "--toggle") {
+            eprintln!("注册 Wayland 切换快捷键失败: {}", e);
+        } else {
+            update_shortcut_status("toggle", &settings.toggle_shortcut, true, None);
         }
     }
-    
+
+    if settings.quickpaste_enabled && !settings.quickpaste_shortcut.is_empty() {
+        if let Err(e) = register_wayland_shortcut("quickpaste", &settings.quickpaste_shortcut, "--quickpaste") {
+            eprintln!("注册 Wayland 便捷粘贴快捷键失败: {}", e);
+        } else {
+            update_shortcut_status("quickpaste", &settings.quickpaste_shortcut, true, None);
+        }
+    }
+
+    if !settings.open_settings_shortcut.is_empty() {
+        if let Err(e) = register_wayland_shortcut("settings", &settings.open_settings_shortcut, "--settings") {
+            eprintln!("注册 Wayland 设置快捷键失败: {}", e);
+        } else {
+            update_shortcut_status("open_settings", &settings.open_settings_shortcut, true, None);
+        }
+    }
+
+    println!("Wayland 快捷键注册完成（通过 GNOME 自定义快捷键）");
+}
+
+fn reload_x11_shortcuts(settings: &crate::services::settings::AppSettings) -> Result<(), String> {
+    if !settings.toggle_shortcut.is_empty() {
+        if let Err(e) = register_toggle_hotkey(&settings.toggle_shortcut) {
+            eprintln!("注册主窗口切换快捷键失败: {}", e);
+        }
+    }
+
+    if !settings.open_settings_shortcut.is_empty() {
+        if let Err(e) = register_open_settings_hotkey(&settings.open_settings_shortcut) {
+            eprintln!("注册打开设置快捷键失败: {}", e);
+        }
+    }
+
+    if settings.quickpaste_enabled && !settings.quickpaste_shortcut.is_empty() {
+        if let Err(e) = register_quickpaste_hotkey(&settings.quickpaste_shortcut) {
+            eprintln!("注册预览窗口快捷键失败: {}", e);
+        }
+    }
+
+    if settings.screenshot_enabled && !settings.screenshot_shortcut.is_empty() {
+        if let Err(e) = register_screenshot_hotkey(&settings.screenshot_shortcut) {
+            eprintln!("注册截图快捷键失败: {}", e);
+        }
+    }
+
+    if settings.screenshot_enabled && !settings.screenshot_quick_save_shortcut.is_empty() {
+        if let Err(e) = register_screenshot_quick_save_hotkey(&settings.screenshot_quick_save_shortcut) {
+            eprintln!("注册快速保存截图快捷键失败: {}", e);
+        }
+    }
+
+    if settings.screenshot_enabled && !settings.screenshot_quick_pin_shortcut.is_empty() {
+        if let Err(e) = register_screenshot_quick_pin_hotkey(&settings.screenshot_quick_pin_shortcut) {
+            eprintln!("注册快速贴图截图快捷键失败: {}", e);
+        }
+    }
+
+    if settings.screenshot_enabled && !settings.screenshot_quick_ocr_shortcut.is_empty() {
+        if let Err(e) = register_screenshot_quick_ocr_hotkey(&settings.screenshot_quick_ocr_shortcut) {
+            eprintln!("注册快速OCR截图快捷键失败: {}", e);
+        }
+    }
+
+    if !settings.toggle_clipboard_monitor_shortcut.is_empty() {
+        if let Err(e) = register_toggle_clipboard_monitor_hotkey(&settings.toggle_clipboard_monitor_shortcut) {
+            eprintln!("注册切换剪贴板监听快捷键失败: {}", e);
+        }
+    }
+
+    if !settings.toggle_paste_with_format_shortcut.is_empty() {
+        if let Err(e) = register_toggle_paste_with_format_hotkey(&settings.toggle_paste_with_format_shortcut) {
+            eprintln!("注册切换格式粘贴快捷键失败: {}", e);
+        }
+    }
+
+    if !settings.paste_plain_text_shortcut.is_empty() {
+        if let Err(e) = register_paste_plain_text_hotkey(&settings.paste_plain_text_shortcut) {
+            eprintln!("注册纯文本粘贴快捷键失败: {}", e);
+        }
+    }
+
+    if settings.number_shortcuts && !settings.number_shortcuts_modifier.is_empty() {
+        if let Err(e) = register_number_shortcuts(&settings.number_shortcuts_modifier) {
+            eprintln!("注册数字快捷键失败: {}", e);
+        }
+    }
+
     Ok(())
 }
 

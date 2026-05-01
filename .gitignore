@@ -26,8 +26,13 @@ target
 .cu*
 /*ents*
 
-docs
+docs/*
+!docs/linux-setup.md
 scap-main
+
+# Local project management
+.planning/
+.omc/
 /plugins
 QuickClipboardWeb
 screenshot_Konva

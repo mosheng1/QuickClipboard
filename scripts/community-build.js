@@ -53,7 +53,9 @@ function patchCapabilitiesForCommunity() {
 
 const args = ['run', 'tauri', '--', command];
 if (isCommunity) {
-    args.push('--', '--no-default-features');
+    args.push('--', '--no-default-features', '--features', 'custom-protocol');
+} else {
+    args.push('--', '--features', 'custom-protocol');
 }
 
 const edition = isCommunity ? '社区版' : '完整版';

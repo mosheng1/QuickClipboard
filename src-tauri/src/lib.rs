@@ -14,6 +14,8 @@ pub use utils::{mouse, screen};
 pub use services::{AppSettings, get_settings, update_settings, get_data_directory, hotkey, SoundPlayer, AppSounds};
 pub use services::system::input_monitor;
 pub use services::system::focus;
+#[cfg(target_os = "linux")]
+pub use services::system::ipc_socket::{start_ipc_server, send_command, is_server_running};
 pub use services::clipboard::{
     start_clipboard_monitor, stop_clipboard_monitor,
     is_monitor_running as is_clipboard_monitor_running,
@@ -33,8 +35,6 @@ pub use windows::quickpaste;
 pub use windows::plugins::context_menu::is_context_menu_visible;
 pub use services::low_memory::{is_low_memory_mode, enter_low_memory_mode, exit_low_memory_mode};
 pub use startup_diagnostics::install_panic_hook as install_startup_panic_hook;
-
-const STARTUP_UPDATE_CHECK_DELAY_MS: u64 = 800;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -93,13 +93,34 @@ pub fn run() {
     
     startup_diagnostics::set_startup_stage("构建 Tauri 应用");
     let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             if services::low_memory::is_low_memory_mode() {
                 let _ = services::low_memory::toggle_panel();
                 return;
             }
-            if let Some(window) = app.get_webview_window("main") {
-                show_main_window(&window);
+            let action = argv.iter().find_map(|a| {
+                if a == "--toggle" { Some("toggle") }
+                else if a == "--quickpaste" { Some("quickpaste") }
+                else if a == "--settings" { Some("settings") }
+                else { None }
+            }).unwrap_or("toggle");
+            match action {
+                "quickpaste" => {
+                    if let Err(e) = windows::quickpaste::show_quickpaste_window(app) {
+                        eprintln!("显示便捷粘贴窗口失败: {}", e);
+                    }
+                }
+                "settings" => {
+                    let app_clone = app.clone();
+                    std::thread::spawn(move || {
+                        if let Err(e) = windows::settings_window::open_settings_window(&app_clone) {
+                            eprintln!("打开设置窗口失败: {}", e);
+                        }
+                    });
+                }
+                _ => {
+                    toggle_main_window_visibility(app);
+                }
             }
         }))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -245,8 +266,6 @@ pub fn run() {
                 commands::get_app_links_cmd,
                 commands::reload_all_windows,
                 commands::check_updates_and_open_window,
-                commands::get_update_banner_state,
-                commands::open_cached_update_window,
                 commands::lan_sync_get_snapshot,
                 commands::lan_sync_get_info,
                 commands::lan_sync_set_enabled,
@@ -736,21 +755,16 @@ pub fn run() {
                 if settings.show_startup_notification {
                     let _ = services::show_startup_notification(app.handle());
                 }
+
+                windows::updater_window::start_update_checker(app.handle().clone());
+
                 startup_diagnostics::set_startup_stage("执行 setup：完成启动收尾");
                 services::memory::init();
                 services::low_memory::init_auto_low_memory_manager(app.handle().clone());
                 startup_diagnostics::mark_ready();
 
-                {
-                    let app_handle = app.handle().clone();
-                    tauri::async_runtime::spawn(async move {
-                        tokio::time::sleep(std::time::Duration::from_millis(
-                            STARTUP_UPDATE_CHECK_DELAY_MS,
-                        ))
-                        .await;
-                        windows::updater_window::start_update_checker(app_handle);
-                    });
-                }
+                #[cfg(target_os = "linux")]
+                services::system::ipc_socket::start_ipc_server(app.handle().clone());
 
             Ok(())
         })
@@ -765,7 +779,33 @@ pub fn run() {
     };
 
     startup_diagnostics::set_startup_stage("运行应用事件循环");
-    app.run(|app, event| {
+
+    // 检测首次启动时的 CLI 参数
+    #[cfg(target_os = "linux")]
+    let linux_start_arg: Option<String> = std::env::args().find(|a| {
+        a == "--toggle" || a == "--quickpaste" || a == "--settings"
+    });
+    #[cfg(not(target_os = "linux"))]
+    let linux_start_arg: Option<String> = None;
+
+    app.run(move |app, event| {
+            // Wayland: 首次启动带参数时，在事件循环就绪后显示窗口
+            #[cfg(target_os = "linux")]
+            if let Some(ref arg) = linux_start_arg {
+                if matches!(event, tauri::RunEvent::Ready) {
+                    let arg = arg.clone();
+                    let handle = app.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_millis(100));
+                        match arg.as_str() {
+                            "--quickpaste" => { let _ = windows::quickpaste::show_quickpaste_window(&handle); }
+                            "--settings" => { let _ = windows::settings_window::open_settings_window(&handle); }
+                            _ => { toggle_main_window_visibility(&handle); }
+                        }
+                    });
+                }
+            }
+
             match event {
                 tauri::RunEvent::ExitRequested { api, .. } => {
                     if services::low_memory::is_low_memory_mode() 

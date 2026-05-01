@@ -7,6 +7,10 @@ pub mod focus;
 pub mod app_filter;
 pub mod win_v_hotkey;
 pub mod elevate;
+#[cfg(target_os = "linux")]
+pub mod wayland_shortcuts;
+#[cfg(target_os = "linux")]
+pub mod ipc_socket;
 
 pub use focus::{focus_clipboard_window, restore_last_focus, save_current_focus};
 pub use app_filter::{

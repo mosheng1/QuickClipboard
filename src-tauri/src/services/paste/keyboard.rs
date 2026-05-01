@@ -1,5 +1,7 @@
-use enigo::{Enigo, Direction, Key, Keyboard, Settings};
 use crate::services::system::input_monitor::get_modifier_keys_state;
+
+#[cfg(target_os = "windows")]
+use enigo::{Enigo, Direction, Key, Keyboard, Settings};
 
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -30,36 +32,47 @@ fn send_key(vk: u16, up: bool) {
 }
 
 // 释放所有修饰键（Alt、Ctrl、Shift、Win）
+#[cfg(target_os = "windows")]
 pub fn release_modifier_keys() -> Result<(), String> {
     let mut enigo = Enigo::new(&Settings::default())
         .map_err(|e| format!("创建键盘模拟器失败: {}", e))?;
-    
+
     let (ctrl, shift, alt, win) = get_modifier_keys_state();
-    
-    // 释放 Alt 键
+
     if alt {
         enigo.key(Key::Alt, Direction::Release)
             .map_err(|e| format!("释放Alt失败: {}", e))?;
     }
-    
-    // 释放 Ctrl 键
     if ctrl {
         enigo.key(Key::Control, Direction::Release)
             .map_err(|e| format!("释放Ctrl失败: {}", e))?;
     }
-    
-    // 释放 Shift 键
     if shift {
         enigo.key(Key::Shift, Direction::Release)
             .map_err(|e| format!("释放Shift失败: {}", e))?;
     }
-    
-    // 释放 Win 键
     if win {
         enigo.key(Key::Meta, Direction::Release)
             .map_err(|e| format!("释放Win失败: {}", e))?;
     }
-    
+
+    Ok(())
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn release_modifier_keys() -> Result<(), String> {
+    let mut keys = Vec::new();
+    let (ctrl, shift, alt, _win) = get_modifier_keys_state();
+    if ctrl { keys.push("ctrl"); }
+    if shift { keys.push("shift"); }
+    if alt { keys.push("alt"); }
+    if !keys.is_empty() {
+        let args = ["keyup", &keys.join("+")];
+        std::process::Command::new("xdotool")
+            .args(&args)
+            .output()
+            .map_err(|e| format!("释放修饰键失败: {}", e))?;
+    }
     Ok(())
 }
 
@@ -151,32 +164,21 @@ fn simulate_paste_ctrl_v() -> Result<(), String> {
     Ok(())
 }
 
-// 模拟粘贴
+// 模拟粘贴 (Linux: xdotool 通过 XWayland 工作，不触发 GNOME 远程交互权限)
 #[cfg(not(target_os = "windows"))]
 pub fn simulate_paste() -> Result<(), String> {
-    let mut enigo = Enigo::new(&Settings::default())
-        .map_err(|e| format!("创建键盘模拟器失败: {}", e))?;
-    
-    let (ctrl_pressed, _, _, _) = get_modifier_keys_state();
-    
-    if !ctrl_pressed {
-        enigo.key(Key::Control, Direction::Press)
-            .map_err(|e| format!("按下Ctrl失败: {}", e))?;
+    let output = std::process::Command::new("xdotool")
+        .args(["key", "--clearmodifiers", "ctrl+v"])
+        .output()
+        .map_err(|e| format!("执行 xdotool 粘贴失败: {}", e))?;
+
+    if !output.status.success() {
+        return Err(format!(
+            "xdotool 粘贴失败: {}",
+            String::from_utf8_lossy(&output.stderr)
+        ));
     }
-    
-    enigo.key(Key::Unicode('v'), Direction::Press)
-        .map_err(|e| format!("按下V失败: {}", e))?;
-    
-    std::thread::sleep(std::time::Duration::from_millis(8));
-    
-    enigo.key(Key::Unicode('v'), Direction::Release)
-        .map_err(|e| format!("释放V失败: {}", e))?;
-    
-    if !ctrl_pressed {
-        enigo.key(Key::Control, Direction::Release)
-            .map_err(|e| format!("释放Ctrl失败: {}", e))?;
-    }
-    
+
     Ok(())
 }
 
