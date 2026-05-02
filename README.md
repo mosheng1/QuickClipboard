@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>重新定义你的复制粘贴体验 🚀</strong><br>
-  Windows 高效剪贴板管理工具 · 快捷 · 智能 · 优雅
+  Windows / Linux 高效剪贴板管理工具 · 快捷 · 智能 · 优雅
 </p>
 
 
@@ -33,9 +33,10 @@
 > 💡 **QuickClipboard** 是一款剪贴板增强工具，  
 > 让你的复制与粘贴更加智能、高效与愉悦。
 
-- 支持文本、图片、文件多类型记录  
-- 智能分组、收藏与搜索  
-- 截屏、收藏、预览、快速粘贴多合一  
+- 支持文本、图片、文件多类型记录
+- 智能分组、收藏与搜索
+- 截屏、收藏、预览、快速粘贴多合一
+- 支持 Windows 和 Linux (Wayland) 双平台
 - 极简 UI · 高度可定制 · 一键唤醒
 
 ---
@@ -84,7 +85,8 @@
 
 ## 💻 系统要求
 
-- 🪟 Windows 10 / 11 (x64)  
+- 🪟 Windows 10 / 11 (x64)
+- 🐧 Linux (Ubuntu 26.04 LTS / Wayland，详见 [Linux 安装指南](docs/linux-setup.md))
 
 ---
 
@@ -97,6 +99,7 @@
 | **📁 便携版**<br>`QuickClipboard_0.3.1_portable.exe`          |     更适合放U盘或移动使用 | ![下载量](https://img.shields.io/github/downloads/mosheng1/QuickClipboard/QuickClipboard_0.3.1_portable.exe?label=) | [![下载便携版](https://img.shields.io/badge/⬇_下载-便携版-green?style=for-the-badge)](https://github.com/mosheng1/QuickClipboard/releases/download/v0.3.1/QuickClipboard_0.3.1_portable.exe) |
 | **📱 安卓版**<br>`QuickClipboard_Android_v1.0.3.apk`          |     适用于 Android 设备安装 | ![下载量](https://img.shields.io/github/downloads/mosheng1/QuickClipboard/QuickClipboard_Android_v1.0.3.apk?label=) | [![下载安卓版](https://img.shields.io/badge/⬇_下载-安卓版-success?style=for-the-badge)](https://github.com/mosheng1/QuickClipboard/releases/download/v0.3.0/QuickClipboard_Android_v1.0.3.apk) |
 | **🌐 网盘下载**                                                |    GitHub 较慢时的备用渠道 |                              —                               | [![网盘下载](https://img.shields.io/badge/🌐_网盘下载-点击进入-red?style=for-the-badge)](https://www.123912.com/s/A9Ckjv-Vu75v?pwd=UhWA#) |
+| **🐧 Linux DEB**<br>`QuickClipboard_0.4.0_amd64.deb`          |     Ubuntu 26.04 LTS (Wayland) 社区版 |                              —                               | [源码构建](docs/linux-setup.md) |
 
 ---
 
