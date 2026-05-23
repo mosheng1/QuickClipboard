@@ -1,3 +1,4 @@
+# 日志
 logs
 *.log
 npm-debug.log*
@@ -6,13 +7,22 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# 依赖与构建产物
 node_modules
 dist
 dist-ssr
 *.local
-
 target
 
+# 环境变量与密钥
+.env
+.env.*
+data/
+*.pem
+*.key
+*.secret.*
+
+# IDE 与编辑器
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -46,13 +56,13 @@ junit-*.xml
 **/mosqcg*
 .cu*
 /*ents*
-
-docs
 scap-main
 /plugins
 QuickClipboardWeb
 screenshot_Konva
 /src/windows/screenshot
 /src-tauri/plugins/gpu-image-viewer
+.tauri/
+docs/
 
 # .trae/ .agents/ docs/ 为目录联接 → QuickClipboard-shared
