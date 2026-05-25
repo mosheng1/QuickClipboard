@@ -2,31 +2,20 @@ use super::state::{set_window_state, WindowState};
 use tauri::{AppHandle, LogicalSize, Manager, WebviewWindow};
 
 const ALWAYS_ON_TOP_REFRESH_DELAY_MS: u64 = 10;
+const DEFAULT_WINDOW_WIDTH: f64 = 360.0;
+const DEFAULT_WINDOW_HEIGHT: f64 = 520.0;
 
 pub(crate) fn normalize_saved_window_size_for_restore(
-    window: &WebviewWindow,
     width: u32,
     height: u32,
 ) -> (f64, f64) {
-    let scale_factor = window
-        .scale_factor()
-        .ok()
-        .filter(|value| *value > 0.0)
-        .unwrap_or(1.0);
-
-    if scale_factor > 1.0 && (width >= 640 || height >= 900) {
-        (
-            (width as f64 / scale_factor).max(350.0),
-            (height as f64 / scale_factor).max(500.0),
-        )
-    } else {
-        (width.max(350) as f64, height.max(500) as f64)
-    }
+    // 保存时已经是逻辑像素，直接应用最小尺寸限制即可
+    (width.max(350) as f64, height.max(500) as f64)
 }
 
 pub(crate) fn apply_saved_window_size(window: &WebviewWindow, width: u32, height: u32) {
     let (logical_width, logical_height) =
-        normalize_saved_window_size_for_restore(window, width, height);
+        normalize_saved_window_size_for_restore(width, height);
     let _ = window.set_size(LogicalSize::new(logical_width, logical_height));
 }
 
@@ -146,11 +135,13 @@ fn show_normal_window(window: &WebviewWindow) {
         }
     }
 
-    // 恢复窗口大小
+    // 恢复或重置窗口大小
     if settings.remember_window_size {
         if let Some((w, h)) = settings.saved_window_size {
             apply_saved_window_size(window, w, h);
         }
+    } else {
+        let _ = window.set_size(LogicalSize::new(DEFAULT_WINDOW_WIDTH, DEFAULT_WINDOW_HEIGHT));
     }
 
     let _ = window.show();
@@ -198,19 +189,32 @@ fn hide_normal_window(window: &WebviewWindow) {
         std::thread::sleep(std::time::Duration::from_millis(200));
     }
 
+    // 统一收集需要保存的变更，避免多次 get_settings/update_settings 导致数据覆盖
+    let mut settings = settings;
+    let mut need_save = false;
+
+    // 保存窗口位置（仅"记住位置"模式）
     if settings.window_position_mode == "remember" {
         if let Ok(position) = window.outer_position() {
-            let mut settings = crate::get_settings();
             settings.saved_window_position = Some((position.x, position.y));
-
-            if settings.remember_window_size {
-                if let Ok(size) = capture_window_logical_size(window) {
-                    settings.saved_window_size = Some(size);
-                }
-            }
-
-            let _ = crate::services::update_settings(settings);
+            need_save = true;
         }
+    }
+
+    // 保存窗口大小（独立于位置模式）
+    if settings.remember_window_size {
+        if let Ok(size) = capture_window_logical_size(window) {
+            settings.saved_window_size = Some(size);
+            need_save = true;
+        }
+    } else if settings.saved_window_size.is_some() {
+        // 开关关闭时清除已保存的大小，避免下次开启时恢复旧值
+        settings.saved_window_size = None;
+        need_save = true;
+    }
+
+    if need_save {
+        let _ = crate::services::update_settings(settings);
     }
 
     if !super::state::is_pinned() {

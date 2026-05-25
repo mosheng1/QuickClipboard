@@ -280,18 +280,11 @@ fn resolve_saved_monitor_and_edge(
 }
 
 fn normalize_saved_logical_size_for_monitor(
-    monitor_scale_factor: f64,
     width: u32,
     height: u32,
 ) -> (f64, f64) {
-    if monitor_scale_factor > 1.0 && (width >= 640 || height >= 900) {
-        (
-            (width as f64 / monitor_scale_factor).max(350.0),
-            (height as f64 / monitor_scale_factor).max(500.0),
-        )
-    } else {
-        (width.max(350) as f64, height.max(500) as f64)
-    }
+    // 保存时已经是逻辑像素，直接应用最小尺寸限制即可
+    (width.max(350) as f64, height.max(500) as f64)
 }
 
 fn resolve_startup_restore_window_size(
@@ -305,7 +298,6 @@ fn resolve_startup_restore_window_size(
     if settings.remember_window_size {
         if let Some((saved_width, saved_height)) = settings.saved_window_size {
             let (logical_width, logical_height) = normalize_saved_logical_size_for_monitor(
-                monitor.scale_factor,
                 saved_width,
                 saved_height,
             );

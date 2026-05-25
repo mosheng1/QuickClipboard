@@ -330,6 +330,9 @@ pub fn toggle_paste_with_format(app: &tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn save_window_position(x: i32, y: i32) -> Result<(), String> {
     let mut settings = get_settings();
+    if settings.window_position_mode != "remember" {
+        return Ok(());
+    }
     settings.saved_window_position = Some((x, y));
     update_settings(settings)?;
     Ok(())
@@ -339,6 +342,9 @@ pub fn save_window_position(x: i32, y: i32) -> Result<(), String> {
 #[tauri::command]
 pub fn save_window_size(width: u32, height: u32) -> Result<(), String> {
     let mut settings = get_settings();
+    if !settings.remember_window_size {
+        return Ok(());
+    }
     settings.saved_window_size = Some((width, height));
     update_settings(settings)?;
     Ok(())
