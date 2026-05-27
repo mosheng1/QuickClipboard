@@ -11,18 +11,45 @@
     "tauri:dev:no-watch": "tauri dev --no-watch",
     "tauri:dev:community": "node scripts/community-build.js --dev",
     "tauri:build": "tauri build",
-    "tauri:build:community": "node scripts/community-build.js"
+    "tauri:build:community": "node scripts/community-build.js --community",
+    "prepare": "husky",
+    "test": "cd src-tauri/plugins/screenshot-suite-oss/web && vitest run",
+    "test:watch": "cd src-tauri/plugins/screenshot-suite-oss/web && vitest",
+    "test:e2e": "cd src-tauri/plugins/screenshot-suite-oss/web && playwright test",
+    "test:main": "vitest run",
+    "test:main:watch": "vitest"
+  },
+  "lint-staged": {
+    "*.{js,jsx}": [
+      "eslint --fix --ext .js,.jsx"
+    ],
+    "src-tauri/plugins/screenshot-suite-oss/web/**/*.{js,jsx}": [
+      "eslint --fix --ext .js,.jsx",
+      "vitest related --run --config src-tauri/plugins/screenshot-suite-oss/web/vitest.config.js"
+    ]
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.4",
+    "@playwright/test": "^1.60.0",
     "@tauri-apps/cli": "^2.11.2",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@unocss/reset": "^66.5.4",
-    "@vitejs/plugin-react": "^5.1.0",
+    "@vitejs/plugin-react": "^5.2.0",
+    "@vitest/coverage-v8": "^4.1.7",
     "autoprefixer": "^10.4.21",
     "babel-plugin-react-compiler": "^1.0.0",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react": "^7.37.5",
+    "globals": "^17.6.0",
+    "husky": "^9.1.7",
+    "jsdom": "^29.1.1",
+    "lint-staged": "^17.0.5",
     "postcss": "^8.5.6",
     "unocss": "^66.5.4",
     "vite": "^7.0.4",
-    "vite-plugin-wasm": "^3.4.1"
+    "vite-plugin-wasm": "^3.4.1",
+    "vitest": "^4.1.7"
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.7",
@@ -45,11 +72,20 @@
     "@tauri-apps/plugin-opener": "^2.5.0",
     "@tauri-apps/plugin-process": "^2.0.0",
     "@tauri-apps/plugin-updater": "^2.1.0",
+    "aria-query": "^5.3.2",
+    "crelt": "^1.0.6",
+    "dijkstrajs": "^1.0.3",
+    "dom-accessibility-api": "^0.7.1",
     "dompurify": "^3.3.0",
     "emoji-picker-element-data": "^1.8.0",
     "i18next": "^25.6.0",
     "i18next-browser-languagedetector": "^8.2.0",
+    "its-fine": "^2.0.0",
+    "konva": "^10.0.9",
+    "lz-string": "^1.5.0",
     "pixi.js": "^7.4.3",
+    "pretty-format": "^30.4.1",
+    "proxy-compare": "^3.0.1",
     "qrcode": "^1.5.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

@@ -1,0 +1,74 @@
+[package]
+name = "screenshot-suite-oss"
+version = "0.1.0"
+description = "社区版截图 Tauri 插件 — 从 QuickClipboard v0.2.0-beta.4 提取"
+authors = ["MoSheng"]
+edition = "2021"
+links = "screenshot-suite-oss"
+
+[lib]
+name = "screenshot_suite_oss"
+crate-type = ["lib"]
+
+[build-dependencies]
+tauri-plugin = { version = "2", features = ["build"] }
+
+[dependencies]
+tauri = { version = "2", features = ["protocol-asset"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["rt-multi-thread", "macros", "time", "fs", "io-util"] }
+once_cell = "1.18"
+rayon = "1.8"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "rayon"] }
+base64 = "0.21"
+uuid = { version = "1.0", features = ["v4"] }
+clipboard-rs = { git = "https://github.com/ChurchTao/clipboard-rs", tag = "v0.3.2" }
+parking_lot = "0.12"
+fastrand = "2.0"
+regex = "1.11"
+sha2 = "0.10"
+
+# WebSocket (long screenshot preview)
+tungstenite = "0.26"
+
+# OCR
+qcocr = { git = "https://github.com/mosheng1/qcocr" }
+
+# UI element detection
+atree = "0.5.2"
+rstar = "0.12.2"
+
+# 截图引擎
+xcap = { git = "https://github.com/mosheng1/xcap" }
+scap = { git = "https://github.com/mosheng1/scap" }
+
+# Windows 特定依赖
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = [
+    "Win32_UI_WindowsAndMessaging",
+    "Win32_UI_Input",
+    "Win32_UI_Input_KeyboardAndMouse",
+    "Win32_UI_Shell",
+    "Win32_UI_Accessibility",
+    "Win32_System_LibraryLoader",
+    "Win32_System_Threading",
+    "Win32_System_ProcessStatus",
+    "Win32_System_DataExchange",
+    "Win32_System_Memory",
+    "Win32_Foundation",
+    "Win32_Security",
+    "Win32_Graphics_Gdi",
+] }
+uiautomation = "0.24.0"
+enigo = "0.6.1"
+
+[dev-dependencies]
+pretty_assertions = "1"
+serial_test = "3"
+proptest = "1"
+criterion = "0.5"
+
+[[bench]]
+name = "process_frame_bench"
+harness = false

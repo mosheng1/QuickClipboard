@@ -106,6 +106,9 @@ gpu-image-viewer = ["dep:gpu-image-viewer"]
 screenshot-suite = ["dep:screenshot-suite"]
 custom-protocol = ["tauri/custom-protocol"]
 
+[dev-dependencies]
+pretty_assertions = "1"
+
 [profile.release]
 lto = "fat"
 opt-level = 3

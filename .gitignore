@@ -22,6 +22,27 @@ target
 *.njsproj
 *.sln
 *.sw?
+
+# AI 与开发工具
+.trae/
+.agents/
+.claude/
+.cursor/
+.opencode
+.omo
+.sisyphus/
+skills-lock.json
+
+# 测试与代码检查
+**/coverage/
+eslint_results*
+junit-*.xml
+**/playwright-report/
+**/test-results/
+/vitest.config.js
+/vitest.setup.js
+
+# 项目特定
 **/mosqcg*
 .cu*
 /*ents*
@@ -33,3 +54,5 @@ QuickClipboardWeb
 screenshot_Konva
 /src/windows/screenshot
 /src-tauri/plugins/gpu-image-viewer
+
+# .trae/ .agents/ docs/ 为目录联接 → QuickClipboard-shared

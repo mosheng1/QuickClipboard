@@ -1,0 +1,8 @@
+{
+  "*.{js,jsx}": [
+    "eslint --fix --no-warn-ignored"
+  ],
+  "src-tauri/plugins/screenshot-suite-oss/web/**/*.{js,jsx}": [
+    "bun run test --workspace=screenshot-suite-oss-web -- --run --passWithNoTests"
+  ]
+}
