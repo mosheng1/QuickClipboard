@@ -356,13 +356,6 @@ impl ScreenUtils {
         Ok(monitors_with_edges)
     }
 
-    // 获取所有显示器及其真实边缘
-    pub fn get_all_monitors_with_edges_global(
-    ) -> Result<Vec<(i32, i32, i32, i32, bool, bool, bool, bool)>, String> {
-        let app = APP_HANDLE.get().ok_or("APP_HANDLE 未初始化")?;
-        Self::get_all_monitors_with_edges(app)
-    }
-
     // 约束位置到屏幕边界内
     pub fn constrain_to_physical_bounds(
         app: &AppHandle,
