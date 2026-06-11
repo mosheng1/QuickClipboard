@@ -32,7 +32,7 @@ const ClipboardTab = forwardRef(({
       } else {
         navigationStore.resetNavigation();
       }
-    }, query ? SEARCH_DEBOUNCE_DELAY : 0);
+    }, SEARCH_DEBOUNCE_DELAY);
   }, []);
 
   useEffect(() => {
