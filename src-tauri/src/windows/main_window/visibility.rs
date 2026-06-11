@@ -20,10 +20,7 @@ pub(crate) fn apply_saved_window_size(window: &WebviewWindow, width: u32, height
 
 fn capture_window_logical_size(window: &WebviewWindow) -> Result<(u32, u32), String> {
     let size = window.inner_size().map_err(|e| e.to_string())?;
-    let scale_factor = window
-        .scale_factor()
-        .map_err(|e| e.to_string())?
-        .max(1.0);
+    let scale_factor = window.scale_factor().map_err(|e| e.to_string())?.max(1.0);
 
     Ok((
         ((size.width as f64) / scale_factor).round().max(1.0) as u32,
@@ -118,8 +115,11 @@ fn show_normal_window(window: &WebviewWindow) {
     let settings = crate::get_settings();
     match settings.window_position_mode.as_str() {
         "remember" => {
-            if let Some((x, y)) = settings.saved_window_position {
-                let _ = window.set_position(tauri::PhysicalPosition::new(x, y));
+            if let Some((x, y)) = settings
+                .saved_window_position
+                .or(settings.edge_snap_position)
+            {
+                let _ = crate::utils::positioning::position_at_saved_or_cursor(window, x, y);
             } else {
                 let _ = crate::utils::positioning::position_at_cursor(window);
             }
@@ -137,7 +137,8 @@ fn show_normal_window(window: &WebviewWindow) {
     if !was_visible {
         use tauri::Emitter;
         let _ = window.emit("window-show-animation", ());
-        let _ = crate::commands::window::emit_main_window_refresh_needed_event(&window.app_handle());
+        let _ =
+            crate::commands::window::emit_main_window_refresh_needed_event(&window.app_handle());
     }
 
     set_window_state(WindowState::Visible);
@@ -207,12 +208,13 @@ fn hide_normal_window(window: &WebviewWindow) {
     use tauri::Emitter;
     use tauri::Manager;
 
+    let window_state = super::state::get_window_state();
     crate::windows::preview_window::suppress_preview_for_main_window_hide(&window.app_handle());
     let _ = crate::windows::pin_image_window::close_image_preview(window.app_handle().clone());
     #[cfg(feature = "gpu-image-viewer")]
     let _ = crate::windows::native_pin_window::close_native_image_preview();
     let _ = crate::windows::preview_window::close_preview_window(window.app_handle().clone());
-    
+
     let _ = window.emit("window-hide-animation", ());
 
     let settings = crate::get_settings();
@@ -222,11 +224,32 @@ fn hide_normal_window(window: &WebviewWindow) {
 
     let mut settings_to_save = None;
 
-    if settings.window_position_mode == "remember" {
+    if settings.window_position_mode == "remember"
+        && !(window_state.is_snapped && window_state.is_hidden)
+    {
         if let Ok(position) = window.outer_position() {
-            let mut updated = crate::get_settings();
-            updated.saved_window_position = Some((position.x, position.y));
-            settings_to_save = Some(updated);
+            let should_save_position = window
+                .outer_size()
+                .ok()
+                .and_then(|size| {
+                    let width = size.width.min(i32::MAX as u32) as i32;
+                    let height = size.height.min(i32::MAX as u32) as i32;
+                    crate::screen::ScreenUtils::is_window_rect_visible_for_restore(
+                        window.app_handle(),
+                        position.x,
+                        position.y,
+                        width,
+                        height,
+                    )
+                    .ok()
+                })
+                .unwrap_or(true);
+
+            if should_save_position {
+                let mut updated = crate::get_settings();
+                updated.saved_window_position = Some((position.x, position.y));
+                settings_to_save = Some(updated);
+            }
         }
     }
 
