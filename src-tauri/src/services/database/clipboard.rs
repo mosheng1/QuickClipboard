@@ -9,8 +9,6 @@ use rusqlite::{params, OptionalExtension};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
 
-const SEARCH_CONTENT_PREFIX_LENGTH: i64 = 4096;
-
 // 计算文本字符数
 fn calculate_char_count(content: &str, content_type: &str) -> Option<i64> {
     if content_type.contains("text") || content_type.contains("rich_text") {
@@ -220,8 +218,7 @@ pub fn query_clipboard_items(
 
         if let Some(ref search) = search_keyword {
             if !search.trim().is_empty() {
-                where_clauses.push("substr(content, 1, ?) LIKE ? ESCAPE '\\'");
-                query_params.push(Box::new(SEARCH_CONTENT_PREFIX_LENGTH));
+                where_clauses.push("content LIKE ? ESCAPE '\\'");
                 let search_pattern = format!("%{}%", escape_like_pattern(search));
                 query_params.push(Box::new(search_pattern));
             }
@@ -1412,13 +1409,13 @@ mod tests {
     #[test]
     fn search_large_history_returns_paginated_total() {
         let _db = setup_test_database();
-        let long_tail = "x".repeat(SEARCH_CONTENT_PREFIX_LENGTH as usize + 512);
+        let long_prefix = "x".repeat(4_608);
         let contents = (0..3_000)
             .map(|index| {
                 if index % 100 == 0 {
-                    format!("needle item {} {}", index, long_tail)
+                    format!("item {} {} needle", index, long_prefix)
                 } else {
-                    format!("regular item {} {}", index, long_tail)
+                    format!("regular item {} {}", index, long_prefix)
                 }
             })
             .collect();
