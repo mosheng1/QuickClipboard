@@ -1,0 +1,39 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "instructions": [
+    "AGENTS.md",
+    "src/AGENTS.md",
+    "src-tauri/src/AGENTS.md",
+    "src/shared/AGENTS.md"
+  ],
+  "references": {
+    "docs": {
+      "path": "docs",
+      "description": "扩展文档：常用命令、工作树配置、截图 Rust 重写设计、社区版截图插件"
+    }
+  },
+  "skills": {
+    "paths": [".agents/skills"]
+  },
+  "command": {
+    "doc-audit": {
+      "description": "审查所有 AGENTS.md 和 docs/ 文档与代码的一致性",
+      "template": "请全面审查以下文档与代码的一致性，发现不一致立即修正：\n\n1. AGENTS.md — 核对命令列表、feature 标志、窗口创建步骤、环境要求\n2. src/AGENTS.md — 核对窗口目录列表与 src/windows/ 中的实际目录\n3. src-tauri/src/AGENTS.md — 核对 commands/services/windows 模块注册情况\n4. src/shared/AGENTS.md — 核对 i18n locale 文件和 store 结构\n5. docs/常用命令.md — 核对命令是否可执行、环境要求是否准确\n\n规则：\n- 不要硬编码计数（如模块数量），用 ... 代替\n- 文档引用路径必须存在\n- 如果文档声称某个文件/目录存在但实际不存在，标注并修正\n- 返回审查报告：列出每个文档的修正项"
+    }
+  },
+  "permission": {
+    "edit": "allow",
+    "bash": {
+      "git *": "allow",
+      "npm *": "allow",
+      "cargo *": "allow",
+      "bun *": "allow",
+      "rm *": "allow",
+      "*": "allow"
+    },
+    "external_directory": {
+      "/tmp/**": "allow",
+      "*": "allow"
+    }
+  }
+}

@@ -9,14 +9,14 @@ shared/
 ├── api/              # 前后端通信封装（invoke 包装器）
 ├── components/       # 共享 UI 组件
 ├── config/           # 全局配置常量
+├── constants/        # 常量定义（如 tabVisibility）
 ├── hooks/            # 共享 React hooks
-├── i18n.js           # i18next 初始化 + 语言检测
+├── i18n.js           # i18next 初始化（fallback: zh-CN）
 ├── locales/          # zh-CN.json + en-US.json（两个文件必须同步）
 ├── services/         # 前端业务逻辑
 ├── store/            # Valtio proxy 状态
 ├── styles/           # UnoCSS 全局样式
-├── utils/            # 工具函数
-└── package.json      # npm workspace 成员
+└── utils/            # 工具函数
 ```
 
 ## i18n 协议（强制）

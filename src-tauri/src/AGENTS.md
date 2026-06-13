@@ -9,48 +9,52 @@ src/
 ├── lib.rs            # crate root，模块声明 + pub use 导出
 ├── main.rs           # 二进制入口，调用 lib::run()
 ├── startup_diagnostics.rs  # 启动诊断（崩溃检测、旧进程检查）
-├── commands/         # Tauri invoke 命令（13 个模块）
+├── commands/         # Tauri invoke 命令模块
 │   ├── mod.rs        #   pub mod 声明 + pub use 导出
 │   ├── clipboard.rs  #   剪贴板操作命令
 │   ├── settings.rs   #   设置命令
-│   ├── window.rs     #   窗口控制命令
-│   └── ...           #   app_links, data_management, favorites 等
-├── services/         # 业务逻辑层（19 个模块）
+│   └── ...           #   window, favorites, groups 等
+├── services/         # 业务逻辑层（模块入口：services/mod.rs）
 │   ├── clipboard/    #   剪贴板监听 + 持久化
 │   ├── database/     #   SQLite 连接管理（单连接 + Mutex）
-│   ├── ai/           #   AI 翻译服务
-│   ├── lan_sync/     #   局域网同步
-│   ├── settings/     #   设置读写
-│   └── ...           #   image, paste, sound, memory 等
-├── windows/          # 窗口管理（10 个子模块）
+│   ├── webdav_sync/  #   WebDAV 同步
+│   ├── sync_transfer/ #  局域网同步/传输
+│   └── ...           #   settings, paste, sound, low_memory 等
+├── windows/          # 窗口管理（模块入口：windows/mod.rs）
 │   ├── main_window/  #   主窗口显示/隐藏/吸附
 │   ├── quickpaste/   #   快速粘贴窗口
 │   ├── tray/         #   系统托盘
-│   └── ...           #   settings_window, pin_image 等
+│   └── ...           #   settings_window, transfer_shelf 等
 ├── security/         # WebView 安全检查
+├── maintenance/      # 数据维护模块
 ├── state/            # Tauri 全局状态管理
 └── utils/            # mouse, screen, positioning 工具
 ```
+
+实际的模块注册以 `commands/mod.rs`、`services/mod.rs`、`windows/mod.rs` 中的 `pub mod` 声明为准；目录中存在但未在 `mod.rs` 中声明的子目录不会被编译。
 
 ## Feature gate
 
 截图功能通过虚拟 feature `screenshot-suite` 统一控制。`screenshot-suite-oss`（社区版）
 和 `screenshot-suite`（完整版）各自激活该虚拟 feature，互斥编译。
 
-OSS 插件运行时注册为 `screenshot-suite` 命名空间（方案 B），权限由插件自身 `build.rs` 注册。
+OSS 插件运行时注册为 `screenshot-suite` 命名空间，权限由插件自身 `build.rs` 注册。
 `capabilities/screenshot.json` 中直接使用 `screenshot-suite:` 前缀，无需构建时替换。
 
-```rust
-// lib.rs 已包含互斥保护：
-#[cfg(all(feature = "screenshot-suite-private", feature = "screenshot-suite-oss"))]
-compile_error!("screenshot-suite and screenshot-suite-oss cannot coexist");
-```
+> ⚠️ `lib.rs` 中当前**没有** `compile_error!` 来强制 `screenshot-suite-private` 与 `screenshot-suite-oss` 互斥，仅靠构建流程保证。
 
-## 新增 Tauri 命令（三步法）
+## 私有仓库拉取
+
+`screenshot-suite` 是 git 子模块，通过 SSH 拉取。需要已配置 GitHub SSH key 且对 `mosheng1/screenshot-suite` 有读取权限。如果无法拉取，使用社区版构建即可绕过。
+
+`gpu-image-viewer` 同样是私有插件，不在仓库中，`Cargo.toml` 中已注释掉。
+
+## 新增 Tauri 命令
 
 1. **创建命令模块** — `commands/<name>.rs`，实现 `#[tauri::command]` 函数
 2. **注册模块** — `commands/mod.rs` 中 `pub mod <name>` + `pub use <name>::*`
-3. **声明权限** — 插件 `build.rs` 的 `tauri_plugin::Builder::new(&[...]).build()` + `capabilities/*.json`
+3. **添加到 handler** — `lib.rs` 的 `generate_handler` 列表中
+4. **声明权限** — 添加到对应的 `capabilities/*.json`
 
 遗漏任一步 → 前端 `invoke()` 静默失败（无编译错误）。
 

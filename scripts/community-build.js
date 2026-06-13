@@ -16,7 +16,9 @@ const screenshotCapabilityPath = path.join(rootDir, 'src-tauri', 'capabilities',
 const defaultCapabilityPath = path.join(rootDir, 'src-tauri', 'capabilities', 'default.json');
 const cargoTomlPath = path.join(rootDir, 'src-tauri', 'Cargo.toml');
 
+// 需要从 Cargo.toml 中移除的私有依赖行前缀
 const PRIVATE_DEPENDENCY_PREFIXES = ['screenshot-suite = {', 'gpu-image-viewer = {'];
+// 需要从 [features] 中移除的私有 feature 名称（仅移除含 dep: 引用的行，保留虚拟 feature）
 const PRIVATE_FEATURE_NAMES = ['gpu-image-viewer', 'screenshot-suite'];
 
 function patchCapabilityFile(filePath) {
@@ -51,9 +53,11 @@ function patchCargoToml() {
         .split(/\r?\n/)
         .filter((line) => {
             const trimmed = line.trim();
+            // 移除私有依赖声明行
             if (PRIVATE_DEPENDENCY_PREFIXES.some((prefix) => trimmed.startsWith(prefix))) {
                 return false;
             }
+            // 移除引用已删除 dep: 的私有 feature 行，保留虚拟 feature（如 screenshot-suite = []）
             if (PRIVATE_FEATURE_NAMES.some((name) => {
                 const pattern = new RegExp(`^${name}\\s*=\\s*\\[`);
                 return pattern.test(trimmed) && trimmed.includes('dep:');
