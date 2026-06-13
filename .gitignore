@@ -63,6 +63,6 @@ screenshot_Konva
 /src/windows/screenshot
 /src-tauri/plugins/gpu-image-viewer
 .tauri/
-docs/
+docs
 
-# .trae/ .agents/ docs/ 为目录联接 → QuickClipboard-shared
+# .trae/ .agents/ docs 为目录联接 → QuickClipboard-shared
