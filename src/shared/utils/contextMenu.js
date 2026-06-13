@@ -475,8 +475,13 @@ async function handleContentTypeActions(result, item, index) {
   const actions = {
     "add-to-transfer-shelf": async () => {},
     "pin-image": async () => {
-      await pinImageToScreen(filePath);
-      toast.success(i18n.t("contextMenu.imagePinned"), TOAST_CONFIG);
+      try {
+        await pinImageToScreen(filePath);
+        toast.success(i18n.t("contextMenu.imagePinned"), TOAST_CONFIG);
+      } catch (error) {
+        console.error("贴图到屏幕失败:", error);
+        toast.error(i18n.t("common.operationFailed"), TOAST_CONFIG);
+      }
     },
     "save-image": async () => {
       await saveImageFromPath(filePath);

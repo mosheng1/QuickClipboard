@@ -133,13 +133,11 @@ class PreviewController {
             filePath: item.previewImage,
           });
         } catch (nativeError) {
-          const message = nativeError?.toString?.() ?? "";
-          if (message.includes("not found") || message.includes("Command")) {
-            invoke("pin_image_from_file", {
-              filePath: item.previewImage,
-              previewMode: true,
-            }).catch(() => {});
-          }
+          console.error("原生预览失败，回退到 Tauri WebView 版:", nativeError);
+          invoke("pin_image_from_file", {
+            filePath: item.previewImage,
+            previewMode: true,
+          }).catch((fallbackError) => { console.error("WebView 预览也失败:", fallbackError); });
         }
       }, LAYOUT.previewDelay);
       this.timers.set(menuItem, timer);

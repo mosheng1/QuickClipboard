@@ -163,17 +163,15 @@ export async function pinImageToScreen(filePath) {
     await invoke('create_native_pin_from_file', { filePath })
     return true
   } catch (error) {
-    if (error?.toString?.()?.includes('not found') || error?.toString?.()?.includes('Command')) {
-      try {
-        await invoke('pin_image_from_file', { filePath })
-        return true
-      } catch (fallbackError) {
-        console.error('tauri版也失败:', fallbackError)
-        throw fallbackError
-      }
+    console.error('原生贴图失败，回退到 Tauri WebView 版:', error)
+    try {
+      await invoke('pin_image_from_file', { filePath })
+      return true
+    } catch (fallbackError) {
+      console.error('贴图到屏幕失败（原生版和Tauri版均失败）:', error, fallbackError)
+      const combinedError = new Error(`贴图到屏幕失败: 原生版 - ${error?.message || error}; Tauri WebView 版 - ${fallbackError?.message || fallbackError}`)
+      throw combinedError
     }
-    console.error('贴图到屏幕失败:', error)
-    throw error
   }
 }
 
