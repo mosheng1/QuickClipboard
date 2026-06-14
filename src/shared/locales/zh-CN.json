@@ -1070,7 +1070,9 @@
       "star": "给个Star",
       "feedback": "反馈问题",
       "share": "推荐分享",
-      "donate": "赞赏支持"
+      "donate": "赞赏支持",
+      "clickToCopyVersion": "点击复制版本号",
+      "versionCopied": "版本号已复制到剪贴板"
     }
   },
   "footer": {

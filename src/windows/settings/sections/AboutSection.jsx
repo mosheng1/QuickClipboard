@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useState, useEffect } from 'react';
 import { openUrl } from '@tauri-apps/plugin-opener';
 import { getAppVersion } from '@shared/services/settingsService';
+import { copyTextToClipboard } from '@shared/api';
 import { toast } from '@shared/store/toastStore';
 import SettingsSection from '../components/SettingsSection';
 import SettingItem from '../components/SettingItem';
@@ -74,6 +75,15 @@ function AboutSection({
       setCheckingUpdate(false);
     }
   };
+  const handleCopyVersion = async () => {
+    try {
+      await copyTextToClipboard(`${t('settings.about.appName')} v${version}`);
+      toast.success(t('settings.about.versionCopied'));
+    } catch (error) {
+      console.error('复制版本号失败:', error);
+      toast.error(t('common.operationFailed'));
+    }
+  };
   const handleOpenGitHub = async () => {
     try {
       await openUrl(appLinks.github);
@@ -107,9 +117,14 @@ function AboutSection({
           <h3 className="text-xl font-bold text-qc-fg mb-1">
             {t('settings.about.appName')}
           </h3>
-          <p className="text-sm text-qc-fg-muted mb-3">
-            {t('settings.about.version')} {version}
-          </p>
+          <div
+            className="inline-flex items-center gap-1 cursor-pointer text-sm text-qc-fg-muted mb-3 hover:text-qc-fg transition-colors"
+            onClick={handleCopyVersion}
+            title={t('settings.about.clickToCopyVersion')}
+          >
+            <span>{t('settings.about.version')} {version}</span>
+            <i className="ti ti-copy text-xs opacity-60"></i>
+          </div>
           <p className="text-sm text-qc-fg-muted max-w-md mx-auto">
             {t('settings.about.descriptionText')}
           </p>
