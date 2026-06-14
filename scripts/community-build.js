@@ -14,6 +14,12 @@ const command = isDev ? 'dev' : 'build';
 
 const screenshotCapabilityPath = path.join(rootDir, 'src-tauri', 'capabilities', 'screenshot.json');
 const defaultCapabilityPath = path.join(rootDir, 'src-tauri', 'capabilities', 'default.json');
+const cargoTomlPath = path.join(rootDir, 'src-tauri', 'Cargo.toml');
+
+// 需要从 Cargo.toml 中移除的私有依赖行前缀
+const PRIVATE_DEPENDENCY_PREFIXES = ['screenshot-suite = {', 'gpu-image-viewer = {'];
+// 需要从 [features] 中移除的私有 feature 名称（仅移除含 dep: 引用的行，保留虚拟 feature）
+const PRIVATE_FEATURE_NAMES = ['gpu-image-viewer', 'screenshot-suite'];
 
 function patchCapabilityFile(filePath) {
     if (!fs.existsSync(filePath)) return () => {};
@@ -39,13 +45,46 @@ function patchCapabilityFile(filePath) {
     };
 }
 
-function patchCapabilitiesForCommunity() {
+function patchCargoToml() {
+    if (!fs.existsSync(cargoTomlPath)) return () => {};
+
+    const original = fs.readFileSync(cargoTomlPath, 'utf8');
+    const modified = original
+        .split(/\r?\n/)
+        .filter((line) => {
+            const trimmed = line.trim();
+            // 移除私有依赖声明行
+            if (PRIVATE_DEPENDENCY_PREFIXES.some((prefix) => trimmed.startsWith(prefix))) {
+                return false;
+            }
+            // 移除引用已删除 dep: 的私有 feature 行，保留虚拟 feature（如 screenshot-suite = []）
+            if (PRIVATE_FEATURE_NAMES.some((name) => {
+                const pattern = new RegExp(`^${name}\\s*=\\s*\\[`);
+                return pattern.test(trimmed) && trimmed.includes('dep:');
+            })) {
+                return false;
+            }
+            return true;
+        })
+        .map((line) => (line.trim().startsWith('default') ? 'default = []' : line))
+        .join('\n');
+
+    fs.writeFileSync(cargoTomlPath, modified, 'utf8');
+
+    return () => {
+        fs.writeFileSync(cargoTomlPath, original, 'utf8');
+    };
+}
+
+function patchForCommunity() {
     if (!isCommunity) return () => {};
 
+    const restoreCargoToml = patchCargoToml();
     const restoreScreenshot = patchCapabilityFile(screenshotCapabilityPath);
     const restoreDefault = patchCapabilityFile(defaultCapabilityPath);
 
     return () => {
+        restoreCargoToml();
         restoreScreenshot();
         restoreDefault();
     };
@@ -62,12 +101,12 @@ console.log(`[build] 模式: ${isDev ? '开发' : '生产'}`);
 console.log(`[build] 执行: npm ${args.join(' ')}`);
 
 let restored = false;
-const restoreCapabilities = patchCapabilitiesForCommunity();
+const restorePatches = patchForCommunity();
 const restoreOnce = () => {
     if (restored) return;
     restored = true;
     try {
-        restoreCapabilities();
+        restorePatches();
     } catch {
     }
 };
