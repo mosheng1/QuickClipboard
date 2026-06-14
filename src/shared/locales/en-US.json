@@ -1069,7 +1069,9 @@
       "star": "Give a Star",
       "feedback": "Report Issues",
       "share": "Share & Recommend",
-      "donate": "Support & Donate"
+      "donate": "Support & Donate",
+      "clickToCopyVersion": "Click to copy version",
+      "versionCopied": "Version copied to clipboard"
     }
   },
   "footer": {
