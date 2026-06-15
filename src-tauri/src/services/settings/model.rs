@@ -4,6 +4,14 @@ pub const SETTINGS_MIGRATION_VERSION_V1: u32 = 1;
 pub const SETTINGS_MIGRATION_VERSION_V2: u32 = 2;
 pub const SETTINGS_MIGRATION_VERSION_V3: u32 = 3;
 
+fn default_adaptive_max_height() -> u32 {
+    350
+}
+
+fn default_file_icon_size() -> String {
+    "large".to_string()
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct AppSettings {
@@ -109,7 +117,11 @@ pub struct AppSettings {
 
     // 列表外观设置
     pub row_height: String,
+    #[serde(default = "default_adaptive_max_height")]
+    pub adaptive_max_height: u32,
     pub file_display_mode: String,
+    #[serde(default = "default_file_icon_size")]
+    pub file_icon_size: String,
     pub list_style: String,
     pub card_spacing: u32,
 
@@ -150,7 +162,7 @@ pub struct AppSettings {
     pub paste_with_format: bool,
     pub paste_shortcut_mode: String,
     pub modifier_click_multi_select: bool,
-    
+
     pub paste_to_top: bool,
     pub show_list_shortcuts: bool,
     pub show_list_index: bool,
@@ -201,7 +213,6 @@ pub struct AppSettings {
     pub webdav_sync_favorites: bool,
     pub webdav_sync_images: bool,
     pub sync_transfer_active_mode: String,
-
 }
 
 impl Default for AppSettings {
@@ -301,7 +312,9 @@ impl Default for AppSettings {
             ui_animation_enabled: true,
 
             row_height: "medium".to_string(),
+            adaptive_max_height: default_adaptive_max_height(),
             file_display_mode: "detailed".to_string(),
+            file_icon_size: default_file_icon_size(),
             list_style: "card".to_string(),
             card_spacing: 8,
 
@@ -421,7 +434,10 @@ mod tests {
         settings.app_filter_list = vec!["chrome.exe".to_string()];
 
         assert!(settings.normalize_app_filter_blocklist());
-        assert_eq!(settings.app_filter_blocklist, vec!["chrome.exe".to_string()]);
+        assert_eq!(
+            settings.app_filter_blocklist,
+            vec!["chrome.exe".to_string()]
+        );
         assert!(settings.app_filter_list.is_empty());
         assert_eq!(settings.app_filter_mode, "blacklist");
     }

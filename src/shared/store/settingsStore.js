@@ -5,9 +5,15 @@ import {
   saveSettingsToBackend 
 } from '@shared/services/settingsService'
 
+const storeDefaultSettings = {
+  ...defaultSettings,
+  adaptiveMaxHeight: 350,
+  fileIconSize: 'large'
+}
+
 // 设置 Store
 export const settingsStore = proxy({
-  ...defaultSettings,
+  ...storeDefaultSettings,
   // UI 专属设置（localStorage）
   fontSize: 14,
   footerLeftRatio: 0.5,
@@ -23,15 +29,21 @@ export const settingsStore = proxy({
   // 加载设置
   async loadSettings() {
     const settings = await loadSettingsFromBackend()
+    const loadedSettings = {
+      ...storeDefaultSettings,
+      ...settings,
+      adaptiveMaxHeight: settings.adaptiveMaxHeight ?? settings.adaptive_max_height ?? storeDefaultSettings.adaptiveMaxHeight,
+      fileIconSize: settings.fileIconSize ?? settings.file_icon_size ?? storeDefaultSettings.fileIconSize
+    }
     
     // 更新所有设置到 store
-    Object.keys(settings).forEach(key => {
+    Object.keys(loadedSettings).forEach(key => {
       if (key in this && key !== 'loadSettings' && key !== 'saveSetting' && key !== 'saveSettings' && key !== 'saveAllSettings' && key !== 'updateSettings') {
-        this[key] = settings[key]
+        this[key] = loadedSettings[key]
       }
     })
     
-    return settings
+    return loadedSettings
   },
   
   // 保存单个设置项
@@ -73,7 +85,7 @@ export const settingsStore = proxy({
   // 获取所有设置（排除方法）
   getAllSettings() {
     const settings = {}
-    Object.keys(defaultSettings).forEach(key => {
+    Object.keys(storeDefaultSettings).forEach(key => {
       if (key in this) {
         settings[key] = this[key]
       }
@@ -138,7 +150,7 @@ export async function initSettings() {
   // 把旧 localStorage 值迁移到配置文件（仅当后端还是默认值时）
   const migrateIfNeeded = async (key, legacyValue) => {
     if (!legacyValue) return
-    if (settingsStore[key] !== defaultSettings[key]) return
+    if (settingsStore[key] !== storeDefaultSettings[key]) return
     await settingsStore.saveSetting(key, legacyValue, { showToast: false })
     try { localStorage.removeItem(key) } catch (_) {}
   }
@@ -151,4 +163,3 @@ export async function initSettings() {
     await i18n.changeLanguage(settingsStore.language)
   }
 }
-

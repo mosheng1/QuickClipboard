@@ -6,6 +6,16 @@ import { highlightText } from '@shared/utils/highlightText';
 import { formatFileSize } from '@shared/utils/format';
 
 const IMAGE_FILE_EXTENSIONS = ['PNG', 'JPG', 'JPEG', 'GIF', 'BMP', 'WEBP', 'ICO', 'SVG'];
+const LARGE_MODE_FILE_ICON_SIZE = {
+  small: 40,
+  medium: 60,
+  large: 80
+};
+const LARGE_MODE_FILE_ICON_GAP = {
+  small: '0.25rem',
+  medium: '0.375rem',
+  large: '0.5rem'
+};
 
 function FileIcon({
   file,
@@ -83,9 +93,12 @@ function FileContent({
 
   // 仅图标模式：网格布局
   if (settings.fileDisplayMode === 'iconOnly') {
-    const iconSize = isXSmallHeight ? 18 : compact ? 29 : settings.rowHeight === 'large' || settings.rowHeight === 'auto' ? 80 : 50;
-    const itemSize = isXSmallHeight ? 22 : compact ? 33 : settings.rowHeight === 'large' || settings.rowHeight === 'auto' ? 84 : 54;
-    const gap = isXSmallHeight ? '0.125rem' : compact ? '0.25rem' : settings.rowHeight === 'large' || settings.rowHeight === 'auto' ? '0.5rem' : '0.375rem';
+    const isLargeOrAutoHeight = settings.rowHeight === 'large' || settings.rowHeight === 'auto';
+    const largeModeIconSize = LARGE_MODE_FILE_ICON_SIZE[settings.fileIconSize] || LARGE_MODE_FILE_ICON_SIZE.large;
+    const largeModeGap = LARGE_MODE_FILE_ICON_GAP[settings.fileIconSize] || LARGE_MODE_FILE_ICON_GAP.large;
+    const iconSize = isXSmallHeight ? 18 : compact ? 29 : isLargeOrAutoHeight ? largeModeIconSize : 50;
+    const itemSize = isXSmallHeight ? 22 : compact ? 33 : isLargeOrAutoHeight ? largeModeIconSize + 4 : 54;
+    const gap = isXSmallHeight ? '0.125rem' : compact ? '0.25rem' : isLargeOrAutoHeight ? largeModeGap : '0.375rem';
     return <div className="w-full h-full overflow-y-auto">
       <div className="w-full flex flex-wrap" style={{
         gap

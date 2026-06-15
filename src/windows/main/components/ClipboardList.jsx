@@ -372,6 +372,14 @@ const ClipboardList = forwardRef(({
   const cardSpacingPx = typeof settings.cardSpacing === 'number' ? settings.cardSpacing : 8;
   const defaultHeight = isCardStyle ? rowConfig.cardPx + cardSpacingPx : rowConfig.px;
   const heightClass = isCardStyle ? rowConfig.cardClass : rowConfig.class;
+  const isAdaptiveRowHeight = settings.rowHeight === 'auto';
+  const rawAdaptiveMaxHeight = Number(settings.adaptiveMaxHeight);
+  const adaptiveMaxHeightPx = Number.isFinite(rawAdaptiveMaxHeight) ? Math.max(80, Math.round(rawAdaptiveMaxHeight)) : 350;
+  const adaptiveRowMaxHeightPx = Math.min(adaptiveMaxHeightPx, 350);
+  const adaptiveRowStyle = isAdaptiveRowHeight && adaptiveRowMaxHeightPx !== 350 ? {
+    maxHeight: `${adaptiveRowMaxHeightPx}px`,
+    overflowY: 'auto'
+  } : undefined;
   const getCardOuterStyle = (index) => isCardStyle ? {
     paddingLeft: '0.625rem',
     paddingRight: '0.625rem',
@@ -396,13 +404,13 @@ const ClipboardList = forwardRef(({
           const entry = itemsWithId[index];
           if (!entry || entry._isPlaceholder) {
             return isCardStyle ? <div style={getCardOuterStyle(index)}>
-              <div className={heightClass}>
+              <div className={heightClass} style={adaptiveRowStyle}>
                 <div className="h-full rounded-lg border border-qc-border bg-qc-panel p-3 animate-pulse">
                   <div className="h-4 bg-qc-panel-2 rounded w-3/4 mb-2"></div>
                   <div className="h-3 bg-qc-panel-2 rounded w-1/2"></div>
                 </div>
               </div>
-            </div> : <div className={heightClass}>
+            </div> : <div className={heightClass} style={adaptiveRowStyle}>
               <div className="h-full border-b border-qc-border bg-qc-panel p-3 animate-pulse">
                 <div className="h-4 bg-qc-panel-2 rounded w-3/4 mb-2"></div>
                 <div className="h-3 bg-qc-panel-2 rounded w-1/2"></div>
@@ -414,7 +422,7 @@ const ClipboardList = forwardRef(({
           const animationDelay = settings.uiAnimationEnabled !== false ? Math.min(index * 20, 100) : 0;
           const item = entry.item;
           return isCardStyle ? <div style={getCardOuterStyle(index)}>
-            <div className={heightClass}>
+            <div className={heightClass} style={adaptiveRowStyle}>
               <ClipboardItem
                 item={item}
                 index={index}
@@ -431,7 +439,7 @@ const ClipboardList = forwardRef(({
                 animationDelay={animationDelay}
               />
             </div>
-          </div> : <div className={heightClass}>
+          </div> : <div className={heightClass} style={adaptiveRowStyle}>
             <ClipboardItem
               item={item}
               index={index}
@@ -456,9 +464,13 @@ const ClipboardList = forwardRef(({
 
     <DragOverlay dropAnimation={null}>
       {activeItem && activeIndex !== -1 && (() => {
-        const overlayClass = settings.rowHeight === 'auto' ? 'h-auto max-h-[350px]' : heightClass;
+        const overlayClass = isAdaptiveRowHeight ? 'h-auto' : heightClass;
+        const overlayStyle = isAdaptiveRowHeight ? {
+          maxHeight: `${adaptiveMaxHeightPx}px`,
+          overflowY: 'auto'
+        } : undefined;
         return (
-          <div className={`${overlayClass} rounded-md border border-qc-border shadow-lg bg-qc-panel/70 backdrop-blur-md`}>
+          <div className={`${overlayClass} rounded-md border border-qc-border shadow-lg bg-qc-panel/70 backdrop-blur-md`} style={overlayStyle}>
             <ClipboardItem
               item={activeItem.item}
               index={activeIndex}

@@ -9,6 +9,7 @@ import SettingsSection from '../components/SettingsSection';
 import SettingItem from '../components/SettingItem';
 import Toggle from '@shared/components/ui/Toggle';
 import Slider from '@shared/components/ui/Slider';
+import Select from '@shared/components/ui/Select';
 import SegmentedControl from '@shared/components/ui/SegmentedControl';
 import MultiSegmentedControl from '@shared/components/ui/MultiSegmentedControl';
 import { normalizeVisibleOptionalTabs, OPTIONAL_TAB_OPTIONS } from '@shared/constants/tabVisibility';
@@ -54,8 +55,26 @@ function AppearanceSection({
     value: option.id,
     label: t(option.labelKey) || option.fallbackLabel
   }));
+  const adaptiveMaxHeight = Number.isFinite(Number(settings.adaptiveMaxHeight))
+    ? Math.min(350, Math.max(80, Math.round(Number(settings.adaptiveMaxHeight))))
+    : 350;
+  const fileIconSizeOptions = [{
+    value: 'small',
+    label: t('settings.appearance.fileIconSizeSmall', '小')
+  }, {
+    value: 'medium',
+    label: t('settings.appearance.fileIconSizeMedium', '中')
+  }, {
+    value: 'large',
+    label: t('settings.appearance.fileIconSizeLarge', '大')
+  }];
   const fieldTitleClass = 'block text-sm font-semibold leading-5 text-qc-fg';
   const fieldDescClass = 'text-xs leading-5 text-qc-fg-subtle';
+  const handleAdaptiveMaxHeightChange = value => {
+    const nextValue = Number(value);
+    if (!Number.isFinite(nextValue)) return;
+    onSettingChange('adaptiveMaxHeight', Math.min(350, Math.max(80, Math.round(nextValue))));
+  };
   const handleSelectBackgroundImage = async () => {
     try {
       const selected = await open({
@@ -446,6 +465,19 @@ function AppearanceSection({
             }]} className="max-w-xl" />
           </SettingItem>
 
+          {settings.rowHeight === 'auto' && <SettingItem label={t('settings.appearance.adaptiveMaxHeight', '自适应最大高度')} description={t('settings.appearance.adaptiveMaxHeightDesc', '限制自适应行高时单条记录的最大高度')}>
+              <Slider
+                value={adaptiveMaxHeight}
+                onChange={handleAdaptiveMaxHeightChange}
+                min={80}
+                max={350}
+                step={10}
+                unit="px"
+                className="w-full max-w-xl"
+                sliderClassName="flex-1 min-w-0 w-auto"
+              />
+            </SettingItem>}
+
           {settings.listStyle === 'card' && <SettingItem label={t('settings.appearance.cardSpacing')} description={t('settings.appearance.cardSpacingDesc')}>
               <SegmentedControl value={String(settings.cardSpacing ?? 8)} onChange={value => onSettingChange('cardSpacing', parseInt(value, 10))} options={[0, 4, 8, 12, 16, 20].map(v => ({
               value: String(v),
@@ -462,6 +494,10 @@ function AppearanceSection({
               label: t('listSettings.fileDisplayMode.iconOnly')
             }]} className="max-w-md" />
           </SettingItem>
+
+          {settings.fileDisplayMode === 'iconOnly' && <SettingItem label={t('settings.appearance.fileIconSize', '文件图标大小')} description={t('settings.appearance.fileIconSizeDesc', '调整大行高和自适应模式下的文件图标大小')}>
+              <Select value={settings.fileIconSize || 'large'} onChange={value => onSettingChange('fileIconSize', value)} options={fileIconSizeOptions} className="w-36" />
+            </SettingItem>}
 
         </div>
       </div>
