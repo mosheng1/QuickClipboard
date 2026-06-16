@@ -118,9 +118,9 @@ impl WebdavClient {
     pub async fn test_connection(&self) -> Result<(), String> {
         self.mkcol("").await?;
         self.mkcol("history").await?;
-        self.mkcol("history/chunks").await?;
+        self.mkcol_with_parent_retry("history", "history/chunks").await?;
         self.mkcol("favorites").await?;
-        self.mkcol("favorites/chunks").await?;
+        self.mkcol_with_parent_retry("favorites", "favorites/chunks").await?;
         self.mkcol("groups").await?;
         self.mkcol("files").await?;
         self.mkcol("tombstones").await?;
@@ -355,14 +355,50 @@ impl WebdavClient {
     pub async fn mkcol(&self, path: &str) -> Result<(), String> {
         let method = Method::from_bytes(b"MKCOL").map_err(|e| e.to_string())?;
         let resp = self.request(method, path).send().await.map_err(map_reqwest_error)?;
-        if resp.status().is_success()
-            || resp.status() == StatusCode::METHOD_NOT_ALLOWED
-            || resp.status().as_u16() == 405
+        let status = resp.status();
+        if status.is_success()
+            || status == StatusCode::METHOD_NOT_ALLOWED
+            || status.as_u16() == 405
         {
             Ok(())
+        } else if status == StatusCode::CONFLICT && self.collection_exists(path).await? {
+            Ok(())
         } else {
-            Err(format_webdav_status_error("创建 WebDAV 目录失败", resp.status()))
+            Err(format_webdav_status_error("创建 WebDAV 目录失败", status))
         }
+    }
+
+    async fn collection_exists(&self, path: &str) -> Result<bool, String> {
+        let method = Method::from_bytes(b"PROPFIND").map_err(|e| e.to_string())?;
+        let resp = self
+            .request(method, path)
+            .header("Depth", "0")
+            .send()
+            .await
+            .map_err(map_reqwest_error)?;
+        let status = resp.status();
+        if status == StatusCode::NOT_FOUND || status == StatusCode::CONFLICT {
+            return Ok(false);
+        }
+        if status == StatusCode::UNAUTHORIZED
+            || status == StatusCode::FORBIDDEN
+            || status.as_u16() == 507
+            || status.is_server_error()
+        {
+            return Err(format_webdav_status_error("创建 WebDAV 目录失败", status));
+        }
+        Ok(true)
+    }
+
+    async fn mkcol_with_parent_retry(&self, parent: &str, path: &str) -> Result<(), String> {
+        if let Err(error) = self.mkcol(path).await {
+            if !is_webdav_conflict(&error) {
+                return Err(error);
+            }
+            self.mkcol(parent).await?;
+            self.mkcol(path).await?;
+        }
+        Ok(())
     }
 
     pub fn mark_dir_ensured(&self, path: &str) {
