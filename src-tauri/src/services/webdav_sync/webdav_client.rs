@@ -377,17 +377,13 @@ impl WebdavClient {
             .await
             .map_err(map_reqwest_error)?;
         let status = resp.status();
+        if status.is_success() || status.as_u16() == 207 {
+            return Ok(true);
+        }
         if status == StatusCode::NOT_FOUND || status == StatusCode::CONFLICT {
             return Ok(false);
         }
-        if status == StatusCode::UNAUTHORIZED
-            || status == StatusCode::FORBIDDEN
-            || status.as_u16() == 507
-            || status.is_server_error()
-        {
-            return Err(format_webdav_status_error("创建 WebDAV 目录失败", status));
-        }
-        Ok(true)
+        Err(format_webdav_status_error("创建 WebDAV 目录失败", status))
     }
 
     async fn mkcol_with_parent_retry(&self, parent: &str, path: &str) -> Result<(), String> {
