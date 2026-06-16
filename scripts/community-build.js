@@ -14,6 +14,10 @@ const command = isDev ? 'dev' : 'build';
 
 const screenshotCapabilityPath = path.join(rootDir, 'src-tauri', 'capabilities', 'screenshot.json');
 const defaultCapabilityPath = path.join(rootDir, 'src-tauri', 'capabilities', 'default.json');
+const cargoTomlPath = path.join(rootDir, 'src-tauri', 'Cargo.toml');
+
+const PRIVATE_DEPENDENCY_PREFIXES = ['screenshot-suite = {', 'gpu-image-viewer = {'];
+const PRIVATE_FEATURE_NAMES = ['gpu-image-viewer', 'screenshot-suite'];
 
 function patchCapabilityFile(filePath) {
     if (!fs.existsSync(filePath)) return () => {};
@@ -39,13 +43,46 @@ function patchCapabilityFile(filePath) {
     };
 }
 
-function patchCapabilitiesForCommunity() {
+function patchCargoToml() {
+    if (!fs.existsSync(cargoTomlPath)) return () => {};
+
+    const original = fs.readFileSync(cargoTomlPath, 'utf8');
+    const modified = original
+        .split(/\r?\n/)
+        .filter((line) => {
+            const trimmed = line.trim();
+            if (PRIVATE_DEPENDENCY_PREFIXES.some((prefix) => trimmed.startsWith(prefix))) {
+                return false;
+            }
+            if (PRIVATE_FEATURE_NAMES.some((name) => {
+                const pattern = new RegExp(`^${name}\\s*=\\s*\\[`);
+                return pattern.test(trimmed) && trimmed.includes('dep:');
+            })) {
+                return false;
+            }
+            return true;
+        })
+        .map((line) => (line.trim().startsWith('default') ? 'default = []' : line))
+        .join('\n');
+
+    if (modified === original) return () => {};
+
+    fs.writeFileSync(cargoTomlPath, modified, 'utf8');
+
+    return () => {
+        fs.writeFileSync(cargoTomlPath, original, 'utf8');
+    };
+}
+
+function patchForCommunity() {
     if (!isCommunity) return () => {};
 
+    const restoreCargoToml = patchCargoToml();
     const restoreScreenshot = patchCapabilityFile(screenshotCapabilityPath);
     const restoreDefault = patchCapabilityFile(defaultCapabilityPath);
 
     return () => {
+        restoreCargoToml();
         restoreScreenshot();
         restoreDefault();
     };
@@ -62,13 +99,14 @@ console.log(`[build] 模式: ${isDev ? '开发' : '生产'}`);
 console.log(`[build] 执行: npm ${args.join(' ')}`);
 
 let restored = false;
-const restoreCapabilities = patchCapabilitiesForCommunity();
+const restorePatches = patchForCommunity();
 const restoreOnce = () => {
     if (restored) return;
     restored = true;
     try {
-        restoreCapabilities();
-    } catch {
+        restorePatches();
+    } catch (err) {
+        console.error('[build] 还原失败:', err.message);
     }
 };
 
