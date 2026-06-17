@@ -35,7 +35,7 @@ const { t } = useTranslation()
 ## Valtio store
 
 ```js
-// store/clipboard.js
+// store/clipboardStore.js
 import { proxy } from 'valtio'
 export const clipboardStore = proxy({ items: [], activeId: null })
 ```

@@ -42,20 +42,20 @@ npm run tauri:build:community      # 正式构建（社区版）
 
 `npm run dev` / `npm run build` 仅运行 Vite（不含 Tauri）。除非只需要前端打包，否则使用 `tauri dev` / `tauri build`。
 
-开发时也可用 `bun` 代替 `npm`（`bun install` / `bun run tauri dev`），速度更快。但**正式构建必须用 `npm`** — `community-build.js` 在 release 构建前执行 `npm ci`；bun 的 symlink 扁平化结构会导致 Vite 构建产物在 transparent WebView2 下触发渲染异常。
+开发时也可用 `bun` 代替 `npm`（`bun install` / `bun run tauri dev`），速度更快。但**正式构建必须用 `npm`** — bun 的 symlink 扁平化结构会导致 Vite 构建产物在 transparent WebView2 下触发渲染异常。
 
 ## 私有版与社区版
 
 私有插件（`gpu-image-viewer`、`screenshot-suite`）不在仓库中。社区版构建脚本（`scripts/community-build.js`）会临时修改 `src-tauri/Cargo.toml` 移除私有依赖行，构建后自动恢复。关键环境变量：`QC_COMMUNITY=1`、`QC_NO_SCREENSHOT=1`。
 
 `Cargo.toml` 中的 feature 标志：
-- `default = []` — 完整构建
-- `community` — 社区构建
-- `screenshot-suite-oss` — OSS 截图替代（子模块）
-- `screenshot-suite`、`gpu-image-viewer` — 私有，不在仓库中
-- `screenshot-suite` 是虚拟 feature，在 `lib.rs` 的 `#[cfg]` 块中统一使用
+- `default = ["gpu-image-viewer", "screenshot-suite"]` — 完整构建
+- 社区构建通过 `--no-default-features` 禁用私有 feature（由 `scripts/community-build.js` 执行）
+- `gpu-image-viewer = ["dep:gpu-image-viewer"]` — 私有 GPU 图片查看器
+- `screenshot-suite = ["dep:screenshot-suite"]` — 私有截图插件
+- `screenshot-suite` 在 `lib.rs` 的 `#[cfg(feature = "screenshot-suite")]` 块中统一使用
 
-> ⚠️ `lib.rs` 中没有 `compile_error!` 来阻止 `screenshot-suite-private` 与 `screenshot-suite-oss` 共存，仅靠构建流程保证互斥。
+> ⚠️ `lib.rs` 中没有 `compile_error!` 来阻止 `screenshot-suite` 与社区版截图插件共存，仅靠构建流程保证互斥。
 
 ## 私有仓库拉取
 
@@ -66,7 +66,7 @@ npm run tauri:build:community      # 正式构建（社区版）
 
 如果无法拉取私有子模块，使用社区版构建（`npm run tauri:dev:community`）即可绕过，不依赖私有插件。
 
-`gpu-image-viewer` 同样是私有插件，不在仓库中，`Cargo.toml` 中已注释掉。
+`gpu-image-viewer` 同样是私有插件，不在仓库中，`Cargo.toml` 中通过 `optional = true` 声明（完整构建时启用，社区构建通过 `--no-default-features` 排除）。
 
 ## 添加功能
 
@@ -97,11 +97,11 @@ npm run tauri:build:community      # 正式构建（社区版）
 - **SQLite** — 单连接 + `Mutex`，WAL 模式，不支持并发写入
 - **React Compiler** — 通过 `babel-plugin-react-compiler` 激活，遵循 Rules of React
 - **Vite alias** — `@` → `src/`、`@shared` → `src/shared/`、`@windows` → `src/windows/`
-- `.gitignore` 排除项：`src/windows/screenshot/`、`src-tauri/plugins/gpu-image-viewer/`、`.trae/`、`.agents/`、`docs/`
+- `.gitignore` 排除项：`src/windows/screenshot/`、`src-tauri/plugins/gpu-image-viewer/`、`docs/`、`.tauri/`
 
 ## 测试与验证
 
-仓库根 `package.json` 无测试脚本。截图插件（`src-tauri/plugins/screenshot-suite/`，私有子模块）内含 Rust 测试和前端测试（Vitest + Playwright），需拉取子模块后可用。OSS 截图替代（`screenshot-suite-oss`）为 `Cargo.toml` 中声明的可选依赖，通过 `screenshot-suite-oss` feature 激活。
+仓库根 `package.json` 无测试脚本。截图插件（`src-tauri/plugins/screenshot-suite/`，私有子模块）内含 Rust 测试和前端测试（Vitest + Playwright），需拉取子模块后可用。
 
 验证方式：
 - **Rust 编译**: `cargo check` / `cargo build`
