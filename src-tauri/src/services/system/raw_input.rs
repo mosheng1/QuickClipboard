@@ -19,10 +19,12 @@ mod windows_raw_input {
         GetRawInputData, RegisterRawInputDevices, HRAWINPUT, RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER,
         RID_INPUT, RIDEV_INPUTSINK,
     };
+    use windows::Win32::Foundation::POINT;
     use windows::Win32::UI::WindowsAndMessaging::{
-        CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, PeekMessageW, RegisterClassExW,
-        TranslateMessage, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, MSG, PM_NOREMOVE, WM_DESTROY, WM_INPUT,
-        WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP, WNDCLASSEXW, WS_OVERLAPPEDWINDOW,
+        CreateWindowExW, DefWindowProcW, DispatchMessageW, GetClassNameW, GetMessageW, PeekMessageW,
+        RegisterClassExW, TranslateMessage, WindowFromPoint, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT,
+        MSG, PM_NOREMOVE, WM_DESTROY, WM_INPUT, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
+        WNDCLASSEXW, WS_OVERLAPPEDWINDOW,
     };
 
     use crate::services::sound::AppSounds;
@@ -730,6 +732,38 @@ mod windows_raw_input {
         });
     }
 
+    // 检测鼠标是否在系统托盘区域（含任务栏托盘区和本程序托盘图标），
+    // 用于避免把托盘点击误判为"窗口外点击"而错误隐藏主窗口。
+    // 通过 WindowFromPoint + GetClassNameW 获取光标处窗口类名判断。
+    // 注意：tray_icon_app 依赖 Tauri tray-icon crate 内部窗口类名，
+    // 若该类名未来变更，需同步更新或改用 HWND 比对方案。
+    fn is_cursor_on_system_tray_impl() -> bool {
+        let (cursor_x, cursor_y) = crate::mouse::get_cursor_position();
+        let point = POINT { x: cursor_x, y: cursor_y };
+
+        let hwnd = unsafe { WindowFromPoint(point) };
+        if hwnd.0.is_null() {
+            return false;
+        }
+
+        let mut class_buf = [0u16; 64];
+        let len = unsafe { GetClassNameW(hwnd, &mut class_buf) };
+        if len == 0 {
+            return false;
+        }
+
+        let class_name = String::from_utf16_lossy(&class_buf[..len as usize]);
+
+        matches!(
+            class_name.as_str(),
+            "Shell_TrayWnd"
+                | "Shell_SecondaryTrayWnd"
+                | "NotifyIconOverflowWindow"
+                | "TopLevelWindowForOverflowXamlIsland"
+                | "tray_icon_app"
+        )
+    }
+
     fn is_mouse_outside_window_impl(window: &WebviewWindow) -> bool {
         let (cursor_x, cursor_y) = crate::mouse::get_cursor_position();
 
@@ -813,6 +847,11 @@ mod windows_raw_input {
             }
 
             if state.is_pinned {
+                return;
+            }
+
+            if is_cursor_on_system_tray_impl() {
+                // 点击在系统托盘区域 → 不隐藏主窗口
                 return;
             }
 
