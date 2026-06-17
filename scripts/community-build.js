@@ -4,6 +4,7 @@ import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
+import { ensureCleanWorkspace } from './ensure-clean-workspace.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.join(__dirname, '..');
@@ -15,6 +16,7 @@ const command = isDev ? 'dev' : 'build';
 const screenshotCapabilityPath = path.join(rootDir, 'src-tauri', 'capabilities', 'screenshot.json');
 const defaultCapabilityPath = path.join(rootDir, 'src-tauri', 'capabilities', 'default.json');
 const cargoTomlPath = path.join(rootDir, 'src-tauri', 'Cargo.toml');
+const cargoLockPath = path.join(rootDir, 'src-tauri', 'Cargo.lock');
 
 const PRIVATE_DEPENDENCY_PREFIXES = ['screenshot-suite = {', 'gpu-image-viewer = {'];
 const PRIVATE_FEATURE_NAMES = ['gpu-image-viewer', 'screenshot-suite'];
@@ -46,7 +48,11 @@ function patchCapabilityFile(filePath) {
 function patchCargoToml() {
     if (!fs.existsSync(cargoTomlPath)) return () => {};
 
+    ensureCleanWorkspace();
+
     const original = fs.readFileSync(cargoTomlPath, 'utf8');
+    // 保持原始换行符（CRLF/LF），避免 Windows 上格式变化
+    const eol = original.includes('\r\n') ? '\r\n' : '\n';
     const modified = original
         .split(/\r?\n/)
         .filter((line) => {
@@ -63,7 +69,7 @@ function patchCargoToml() {
             return true;
         })
         .map((line) => (line.trim().startsWith('default') ? 'default = []' : line))
-        .join('\n');
+        .join(eol);
 
     if (modified === original) return () => {};
 
@@ -74,17 +80,31 @@ function patchCargoToml() {
     };
 }
 
+// 备份 Cargo.lock，社区构建完成后恢复原状
+function backupCargoLock() {
+    if (!fs.existsSync(cargoLockPath)) return () => {};
+
+    const original = fs.readFileSync(cargoLockPath, 'utf8');
+
+    return () => {
+        fs.writeFileSync(cargoLockPath, original, 'utf8');
+    };
+}
+
+// 修补所有社区构建需要修改的文件，返回闭包用于恢复
 function patchForCommunity() {
     if (!isCommunity) return () => {};
 
     const restoreCargoToml = patchCargoToml();
     const restoreScreenshot = patchCapabilityFile(screenshotCapabilityPath);
     const restoreDefault = patchCapabilityFile(defaultCapabilityPath);
+    const restoreCargoLock = backupCargoLock();
 
     return () => {
         restoreCargoToml();
         restoreScreenshot();
         restoreDefault();
+        restoreCargoLock();
     };
 }
 
@@ -98,6 +118,9 @@ console.log(`[build] 版本: ${edition}`);
 console.log(`[build] 模式: ${isDev ? '开发' : '生产'}`);
 console.log(`[build] 执行: npm ${args.join(' ')}`);
 
+// 修补前先检测并恢复上次中断残留的补丁文件
+ensureCleanWorkspace();
+
 let restored = false;
 const restorePatches = patchForCommunity();
 const restoreOnce = () => {
@@ -110,15 +133,7 @@ const restoreOnce = () => {
     }
 };
 
-process.on('SIGINT', () => {
-    restoreOnce();
-    process.exit(130);
-});
-
-process.on('SIGTERM', () => {
-    restoreOnce();
-    process.exit(143);
-});
+let interrupted = false;
 
 const child = spawn('npm', args, { 
     stdio: 'inherit', 
@@ -130,6 +145,21 @@ const child = spawn('npm', args, {
     }
 });
 
+// 信号中断时 kill 子进程，等 close 事件后再 restore，
+// 避免 cargo 退出时覆盖已恢复的 Cargo.lock
+process.on('SIGINT', () => {
+    if (interrupted) return;
+    interrupted = true;
+    try { child.kill('SIGINT'); } catch {}
+    // 不在此恢复，等 child close 事件确保子进程已完全退出
+});
+
+process.on('SIGTERM', () => {
+    if (interrupted) return;
+    interrupted = true;
+    try { child.kill('SIGTERM'); } catch {}
+});
+
 child.on('error', (err) => {
     restoreOnce();
     console.error(`[build] 启动失败: ${err.message}`);
@@ -138,10 +168,11 @@ child.on('error', (err) => {
 
 child.on('close', (code) => {
     restoreOnce();
-    if (code !== 0) {
-        console.error(`[build] 编译失败，退出码: ${code}`);
+    const exitCode = interrupted ? 130 : (code ?? 1);
+    if (exitCode !== 0) {
+        console.error(`[build] 编译${interrupted ? '中断' : '失败'}，退出码: ${exitCode}`);
     } else {
         console.log(`[build] ${edition}编译完成`);
     }
-    process.exit(code);
+    process.exit(exitCode);
 });
