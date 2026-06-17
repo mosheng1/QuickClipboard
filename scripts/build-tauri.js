@@ -56,7 +56,9 @@ async function main() {
     path.join(rootDir, 'src-tauri', 'plugins', 'screenshot-suite', 'web', 'package.json')
   )
 
-  ensureCleanCargoToml()
+  if (!isCommunity) {
+    ensureCleanCargoToml()
+  }
 
   try {
     if (hasScreenshotPlugin) {

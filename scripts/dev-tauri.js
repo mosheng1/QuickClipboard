@@ -73,7 +73,9 @@ async function main() {
   const screenshotWebDir = path.join(rootDir, 'src-tauri', 'plugins', 'screenshot-suite', 'web')
   const hasScreenshotPlugin = !isCommunity && existsSync(path.join(screenshotWebDir, 'package.json'))
 
-  ensureCleanCargoToml()
+  if (!isCommunity) {
+    ensureCleanCargoToml()
+  }
 
   if (hasScreenshotPlugin) {
     await linkScreenshotSource()
