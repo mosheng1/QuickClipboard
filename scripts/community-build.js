@@ -4,6 +4,7 @@ import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import path from 'path';
 import fs from 'fs';
+import { ensureCleanCargoToml } from './ensure-clean-cargo-toml.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.join(__dirname, '..');
@@ -47,6 +48,8 @@ function patchCapabilityFile(filePath) {
 
 function patchCargoToml() {
     if (!fs.existsSync(cargoTomlPath)) return () => {};
+
+    ensureCleanCargoToml();
 
     const original = fs.readFileSync(cargoTomlPath, 'utf8');
     const modified = original

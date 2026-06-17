@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 import fs from 'node:fs/promises'
 import { existsSync } from 'node:fs'
+import { ensureCleanCargoToml } from './ensure-clean-cargo-toml.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -71,6 +72,8 @@ async function main() {
   const isCommunity = process.env.QC_COMMUNITY === '1'
   const screenshotWebDir = path.join(rootDir, 'src-tauri', 'plugins', 'screenshot-suite', 'web')
   const hasScreenshotPlugin = !isCommunity && existsSync(path.join(screenshotWebDir, 'package.json'))
+
+  ensureCleanCargoToml()
 
   if (hasScreenshotPlugin) {
     await linkScreenshotSource()
