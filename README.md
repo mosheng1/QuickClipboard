@@ -261,6 +261,11 @@ npm run tauri:dev:community
 
 # 社区版构建（不含私有插件）
 npm run tauri:build:community
+
+# 代码检查与测试（社区版，无需私有插件）
+npm run check:community       # Rust 编译检查
+npm run clippy:community      # Rust lint
+npm run test:rust             # Rust 单元测试
 ```
 
 ### 关于私有组件
