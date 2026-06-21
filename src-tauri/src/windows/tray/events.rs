@@ -10,9 +10,9 @@ pub fn handle_tray_click(app: &AppHandle) {
         }
         return;
     }
-    if let Some(window) = app.get_webview_window("main") {
-        crate::show_main_window(&window);
-    }
+    // 使用 toggle 替代无条件的 show，使托盘点击能够正确切换显示/隐藏状态。
+    // 配合 raw_input 中的托盘区域检测，避免双击/快速点击时 show 与 hide 竞争导致动画闪跳。
+    crate::toggle_main_window_visibility(app);
 }
 
 pub fn create_click_handler(app_handle: AppHandle) -> impl Fn() + Send + 'static {

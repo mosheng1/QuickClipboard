@@ -19,10 +19,12 @@ mod windows_raw_input {
         GetRawInputData, RegisterRawInputDevices, HRAWINPUT, RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER,
         RID_INPUT, RIDEV_INPUTSINK,
     };
+    use windows::Win32::Foundation::POINT;
     use windows::Win32::UI::WindowsAndMessaging::{
-        CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, PeekMessageW, RegisterClassExW,
-        TranslateMessage, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, MSG, PM_NOREMOVE, WM_DESTROY, WM_INPUT,
-        WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP, WNDCLASSEXW, WS_OVERLAPPEDWINDOW,
+        CreateWindowExW, DefWindowProcW, DispatchMessageW, GetClassNameW, GetMessageW, GetParent,
+        PeekMessageW, RegisterClassExW, TranslateMessage, WindowFromPoint, CS_HREDRAW, CS_VREDRAW,
+        CW_USEDEFAULT, MSG, PM_NOREMOVE, WM_DESTROY, WM_INPUT, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN,
+        WM_SYSKEYUP, WNDCLASSEXW, WS_OVERLAPPEDWINDOW,
     };
 
     use crate::services::sound::AppSounds;
@@ -730,6 +732,53 @@ mod windows_raw_input {
         });
     }
 
+    // 检测鼠标是否在系统托盘区域（含任务栏通知区域、溢出区域、本程序托盘图标），
+    // 用于避免把托盘点击误判为"窗口外点击"而错误隐藏主窗口。
+    //
+    // 从 WindowFromPoint 返回的窗口开始，向上遍历最多 10 层父窗口链，
+    // 若任一级别窗口类名命中预定义列表，则视为托盘区域点击。
+    //
+    // 需要遍历父窗口链的原因：通知区域图标嵌入在 ToolbarWindow32 → SysPager
+    // → TrayNotifyWnd → Shell_TrayWnd 层级中，WindowFromPoint 返回的是深层
+    // 子窗口（如 ToolbarWindow32），不直接返回 Shell_TrayWnd。
+    //
+    // 注意：tray_icon_app 依赖 Tauri tray-icon 组件内部窗口类名，若未来变更需同步更新。
+    fn is_cursor_on_system_tray_impl() -> bool {
+        const TRAY_CLASSES: &[&str] = &[
+            "Shell_TrayWnd",
+            "Shell_SecondaryTrayWnd",
+            "NotifyIconOverflowWindow",
+            "TopLevelWindowForOverflowXamlIsland",
+            "tray_icon_app",
+        ];
+
+        let (x, y) = crate::mouse::get_cursor_position();
+        let mut hwnd = unsafe { WindowFromPoint(POINT { x, y }) };
+        if hwnd.0.is_null() {
+            return false;
+        }
+
+        fn get_class(hwnd: HWND) -> Option<String> {
+            let mut buf = [0u16; 64];
+            let len = unsafe { GetClassNameW(hwnd, &mut buf) };
+            (len > 0).then(|| String::from_utf16_lossy(&buf[..len as usize]))
+        }
+
+        for _ in 0..10 {
+            if let Some(class) = get_class(hwnd) {
+                if TRAY_CLASSES.iter().any(|&c| c == class.as_str()) {
+                    return true;
+                }
+            }
+            hwnd = match unsafe { GetParent(hwnd) } {
+                Ok(h) if !h.0.is_null() => h,
+                _ => break,
+            };
+        }
+
+        false
+    }
+
     fn is_mouse_outside_window_impl(window: &WebviewWindow) -> bool {
         let (cursor_x, cursor_y) = crate::mouse::get_cursor_position();
 
@@ -802,6 +851,12 @@ mod windows_raw_input {
         }
 
         if !should_handle_click_outside_impl() {
+            return;
+        }
+
+        // 托盘区域点击（任务栏通知区域 / 溢出区域 / 托盘图标）不触发主窗口隐藏，
+        // 避免与托盘图标的 click 事件产生 show/hide 竞争导致动画闪跳。
+        if is_cursor_on_system_tray_impl() {
             return;
         }
 
