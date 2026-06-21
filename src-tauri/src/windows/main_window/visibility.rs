@@ -219,7 +219,10 @@ fn hide_normal_window(window: &WebviewWindow) {
 
     let settings = crate::get_settings();
     if settings.clipboard_animation_enabled {
-        std::thread::sleep(std::time::Duration::from_millis(200));
+        // 等待前端收起动画（animateCollapse, 200ms）完成。
+        // emit 是异步的，前端收到事件并开始动画有延迟，因此 sleep 略大于动画时长，
+        // 确保 window.hide() 时 opacity 已归零，避免下次 show 时出现全亮闪跳。
+        std::thread::sleep(std::time::Duration::from_millis(250));
     }
 
     let mut settings_to_save = None;
@@ -270,6 +273,7 @@ fn hide_normal_window(window: &WebviewWindow) {
     }
 
     let _ = window.hide();
+
     set_window_state(WindowState::Hidden);
     crate::services::memory::schedule_cleanup_after_main_window_hide();
 
