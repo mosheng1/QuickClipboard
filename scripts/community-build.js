@@ -68,7 +68,16 @@ function patchCargoToml() {
             }
             return true;
         })
-        .map((line) => (line.trim().startsWith('default') ? 'default = []' : line))
+        .map((line) => {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('default =')) return line;
+            // 仅从 default 中移除私有 feature，保留其他公共 feature
+            const m = line.match(/^(\s*)default\s*=\s*\[(.*)\]/);
+            if (!m) return line;
+            const kept = m[2].split(',').map(s => s.trim()).filter(Boolean)
+                .filter(f => !PRIVATE_FEATURE_NAMES.some(n => f === `"${n}"`));
+            return `${m[1]}default = [${kept.join(', ')}]`;
+        })
         .join(eol);
 
     if (modified === original) return () => {};
