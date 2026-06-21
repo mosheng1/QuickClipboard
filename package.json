@@ -11,7 +11,10 @@
     "tauri:dev:no-watch": "tauri dev --no-watch",
     "tauri:dev:community": "node scripts/community-build.js --dev",
     "tauri:build": "tauri build",
-    "tauri:build:community": "node scripts/community-build.js"
+    "tauri:build:community": "node scripts/community-build.js",
+    "check:community": "node scripts/community-check.js check",
+    "clippy:community": "node scripts/community-check.js clippy",
+    "test:rust": "node scripts/community-check.js test"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.2",
