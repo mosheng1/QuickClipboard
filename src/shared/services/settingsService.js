@@ -16,6 +16,7 @@ export const defaultSettings = {
   autoStart: false,
   runAsAdmin: false,
   startHidden: false,
+  showTrayIcon: true,
   showStartupNotification: true,
   autoLowMemoryEnabled: false,
   autoLowMemoryIdleMinutes: 15,

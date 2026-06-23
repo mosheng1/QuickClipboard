@@ -11,6 +11,7 @@ pub struct AppSettings {
     pub auto_start: bool,
     pub run_as_admin: bool,
     pub start_hidden: bool,
+    pub show_tray_icon: bool,
     pub show_startup_notification: bool,
     pub tooltips_enabled: bool,
     pub auto_low_memory_enabled: bool,
@@ -211,6 +212,7 @@ impl Default for AppSettings {
             auto_start: false,
             run_as_admin: false,
             start_hidden: true,
+            show_tray_icon: true,
             show_startup_notification: true,
             tooltips_enabled: true,
             auto_low_memory_enabled: false,
@@ -440,5 +442,4 @@ mod tests {
         assert!(settings.app_filter_list.is_empty());
         assert_eq!(settings.app_filter_mode, "blacklist");
     }
-
 }

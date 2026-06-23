@@ -478,6 +478,8 @@
       "autoLowMemoryIdleMinutesDesc": "Automatically enter low memory mode when no window interaction occurs for the selected duration",
       "autoExitLowMemoryMode": "Auto Exit Low Memory Mode",
       "autoExitLowMemoryModeDesc": "Automatically exit low memory mode when showing the clipboard or taking a screenshot in low memory mode",
+      "showTrayIcon": "Show Tray Icon",
+      "showTrayIconDesc": "Show QuickClipboard icon in the system tray. When hidden, use shortcut to open settings and re-enable",
       "tooltipsEnabled": "Show Tooltips",
       "tooltipsEnabledDesc": "Show hints when hovering or focusing on elements",
       "historyLimit": "History Limit",

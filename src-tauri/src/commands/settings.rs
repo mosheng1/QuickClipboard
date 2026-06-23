@@ -100,6 +100,7 @@ pub fn save_settings(mut settings: AppSettings, app: tauri::AppHandle) -> Result
     let webdav_crypto_scope_changed = old_settings.webdav_url != settings.webdav_url
         || old_settings.webdav_username != settings.webdav_username
         || old_settings.webdav_root_path != settings.webdav_root_path;
+    let show_tray_icon_changed = old_settings.show_tray_icon != settings.show_tray_icon;
 
     if edge_hide_changed && !settings.edge_hide_enabled {
         settings.edge_snap_position = None;
@@ -151,6 +152,14 @@ pub fn save_settings(mut settings: AppSettings, app: tauri::AppHandle) -> Result
             });
         } else if let Some(window) = app.get_webview_window("quickpaste") {
             let _ = window.close();
+        }
+    }
+
+    if show_tray_icon_changed {
+        if let Some(tray) = app.tray_by_id("main-tray") {
+            if let Err(e) = tray.set_visible(settings.show_tray_icon) {
+                eprintln!("切换托盘图标可见性失败: {}", e);
+            }
         }
     }
 

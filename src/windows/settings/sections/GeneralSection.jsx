@@ -200,6 +200,10 @@ function GeneralSection({
         <Toggle checked={settings.autoExitLowMemoryMode} onChange={checked => onSettingChange('autoExitLowMemoryMode', checked)} />
       </SettingItem>
 
+      <SettingItem label={t('settings.general.showTrayIcon')} description={t('settings.general.showTrayIconDesc')}>
+        <Toggle checked={settings.showTrayIcon} onChange={checked => onSettingChange('showTrayIcon', checked)} />
+      </SettingItem>
+
       <SettingItem label={t('settings.general.historyLimit')} description={t('settings.general.historyLimitDesc')}>
         <PresetInput
           type="number"

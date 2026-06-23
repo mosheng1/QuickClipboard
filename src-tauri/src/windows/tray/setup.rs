@@ -1,7 +1,7 @@
 use image::GenericImageView;
 use tauri::{
     tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState},
-    AppHandle,
+    AppHandle, Manager,
 };
 
 use super::create_click_handler;
@@ -63,6 +63,15 @@ pub fn setup_tray(app: &AppHandle) -> Result<(), Box<dyn std::error::Error>> {
             }
         })
         .build(app)?;
+
+    // 启动时按设置隐藏托盘图标
+    if !crate::services::get_settings().show_tray_icon {
+        if let Some(tray) = app.tray_by_id("main-tray") {
+            if let Err(e) = tray.set_visible(false) {
+                eprintln!("隐藏托盘图标失败: {}", e);
+            }
+        }
+    }
 
     Ok(())
 }

@@ -478,6 +478,8 @@
       "autoLowMemoryIdleMinutesDesc": "超过该时长仍未与任意窗口交互时，自动进入低占用模式",
       "autoExitLowMemoryMode": "自动退出低占用模式",
       "autoExitLowMemoryModeDesc": "低占用模式下触发剪贴板显示或截屏时自动退出低占用模式",
+      "showTrayIcon": "显示托盘图标",
+      "showTrayIconDesc": "在系统托盘区域显示 QuickClipboard 图标，隐藏后可通过快捷键打开设置界面重新显示",
       "tooltipsEnabled": "显示提示框",
       "tooltipsEnabledDesc": "鼠标悬停或聚焦元素时显示提示信息",
       "historyLimit": "剪贴板历史数量",
