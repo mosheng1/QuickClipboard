@@ -10,6 +10,7 @@ pub struct AppSettings {
     // 基础设置
     pub auto_start: bool,
     pub run_as_admin: bool,
+    pub auto_start_on_battery: bool,
     pub start_hidden: bool,
     pub show_tray_icon: bool,
     pub show_startup_notification: bool,
@@ -211,6 +212,7 @@ impl Default for AppSettings {
         Self {
             auto_start: false,
             run_as_admin: false,
+            auto_start_on_battery: true,
             start_hidden: true,
             show_tray_icon: true,
             show_startup_notification: true,
@@ -441,5 +443,18 @@ mod tests {
         assert!(settings.app_filter_blocklist.is_empty());
         assert!(settings.app_filter_list.is_empty());
         assert_eq!(settings.app_filter_mode, "blacklist");
+    }
+
+    #[test]
+    fn default_auto_start_on_battery_is_true() {
+        let settings = AppSettings::default();
+        assert!(settings.auto_start_on_battery);
+    }
+
+    #[test]
+    fn serialize_uses_camel_case_for_auto_start_on_battery() {
+        let settings = AppSettings::default();
+        let json = serde_json::to_string(&settings).unwrap();
+        assert!(json.contains("\"autoStartOnBattery\""));
     }
 }

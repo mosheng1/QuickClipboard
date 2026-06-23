@@ -164,7 +164,11 @@ function GeneralSection({
         <Toggle checked={settings.autoStart} onChange={handleAutoStartChange} disabled={autoStartLoading} />
       </SettingItem>
 
-      <SettingItem 
+      <SettingItem label={t('settings.general.autoStartOnBattery')} description={t('settings.general.autoStartOnBatteryDesc')}>
+        <Toggle checked={settings.autoStartOnBattery} onChange={checked => onSettingChange('autoStartOnBattery', checked)} />
+      </SettingItem>
+
+      <SettingItem
         label={
           <span className="flex items-center gap-2">
             {t('settings.general.runAsAdmin')}

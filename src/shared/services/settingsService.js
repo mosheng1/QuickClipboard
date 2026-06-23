@@ -15,6 +15,7 @@ export const defaultSettings = {
   // 常规设置
   autoStart: false,
   runAsAdmin: false,
+  autoStartOnBattery: true,
   startHidden: false,
   showTrayIcon: true,
   showStartupNotification: true,

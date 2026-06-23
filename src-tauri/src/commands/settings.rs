@@ -101,6 +101,9 @@ pub fn save_settings(mut settings: AppSettings, app: tauri::AppHandle) -> Result
         || old_settings.webdav_username != settings.webdav_username
         || old_settings.webdav_root_path != settings.webdav_root_path;
     let show_tray_icon_changed = old_settings.show_tray_icon != settings.show_tray_icon;
+    let auto_start_changed = old_settings.auto_start != settings.auto_start;
+    let auto_start_on_battery_changed =
+        old_settings.auto_start_on_battery != settings.auto_start_on_battery;
 
     if edge_hide_changed && !settings.edge_hide_enabled {
         settings.edge_snap_position = None;
@@ -169,7 +172,12 @@ pub fn save_settings(mut settings: AppSettings, app: tauri::AppHandle) -> Result
             screenshot_suite::config::update_config(json);
         }
     }
-    
+
+    // 自启动或离电自启动变更时，同步计划任务（内部含门控判断和非致命错误处理）
+    if auto_start_changed || auto_start_on_battery_changed {
+        crate::services::system::sync_scheduled_task(&settings);
+    }
+
     Ok(())
 }
 
