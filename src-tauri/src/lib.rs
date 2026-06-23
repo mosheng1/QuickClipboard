@@ -72,16 +72,21 @@ pub fn run() {
         #[cfg(not(debug_assertions))]
         if let Ok(settings) = services::settings::load_settings_from_file() {
             if services::system::should_maintain_scheduled_task(&settings) {
-                startup_diagnostics::set_startup_stage("检查管理员启动：检测当前进程权限");
-                let is_admin = services::system::is_running_as_admin();
-
-                if is_admin {
-                    startup_diagnostics::set_startup_stage("检查管理员启动：当前已是管理员，准备同步计划任务");
-                    services::system::sync_scheduled_task(&settings);
+                // 离电状态下若不允许离电自启动，跳过管理员提权，以普通用户身份运行
+                if !settings.auto_start_on_battery && services::system::is_on_battery() {
+                    startup_diagnostics::set_startup_stage("检查管理员启动：离电状态已跳过提权");
                 } else {
-                    startup_diagnostics::set_startup_stage("检查管理员启动：当前不是管理员，准备提权重启");
-                    if services::system::elevate::try_elevate_and_restart() {
-                        std::process::exit(0);
+                    startup_diagnostics::set_startup_stage("检查管理员启动：检测当前进程权限");
+                    let is_admin = services::system::is_running_as_admin();
+
+                    if is_admin {
+                        startup_diagnostics::set_startup_stage("检查管理员启动：当前已是管理员，准备同步计划任务");
+                        services::system::sync_scheduled_task(&settings);
+                    } else {
+                        startup_diagnostics::set_startup_stage("检查管理员启动：当前不是管理员，准备提权重启");
+                        if services::system::elevate::try_elevate_and_restart() {
+                            std::process::exit(0);
+                        }
                     }
                 }
             }

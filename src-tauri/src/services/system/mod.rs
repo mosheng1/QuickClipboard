@@ -7,6 +7,7 @@ pub mod focus;
 pub mod app_filter;
 pub mod win_v_hotkey;
 pub mod elevate;
+pub mod power;
 
 pub use focus::{focus_clipboard_window, restore_last_focus, save_current_focus};
 pub use app_filter::{
@@ -28,3 +29,4 @@ pub use elevate::{
     should_maintain_scheduled_task,
     sync_scheduled_task,
 };
+pub use power::is_on_battery;

@@ -137,6 +137,29 @@ function GeneralSection({
       setRunAsAdminLoading(false);
     }
   };
+  const handleAutoStartOnBatteryChange = async checked => {
+    try {
+      await onSettingChange('autoStartOnBattery', checked);
+      const isAdmin = await isRunningAsAdmin();
+      if (isAdmin) {
+        toast.success(checked ? t('settings.general.autoStartOnBatteryEnabled') : t('settings.general.autoStartOnBatteryDisabled'));
+      } else {
+        const shouldRestart = await showConfirm(t('settings.general.autoStartOnBatteryNeedAdmin'));
+        if (shouldRestart) {
+          try {
+            await restartAsAdmin();
+          } catch (e) {
+            toast.error(t('settings.general.runAsAdminRestartFailed'));
+          }
+        } else {
+          toast.info(t('settings.general.autoStartOnBatteryDeferred'));
+        }
+      }
+    } catch (error) {
+      console.error('设置离电自启动失败:', error);
+      toast.error(formatUserMessage(error, t, 'settings.general.autoStartOnBatteryFailed'));
+    }
+  };
   const handleLanguageChange = async lang => {
     try {
       await i18n.changeLanguage(lang);
@@ -165,7 +188,7 @@ function GeneralSection({
       </SettingItem>
 
       <SettingItem label={t('settings.general.autoStartOnBattery')} description={t('settings.general.autoStartOnBatteryDesc')}>
-        <Toggle checked={settings.autoStartOnBattery} onChange={checked => onSettingChange('autoStartOnBattery', checked)} />
+        <Toggle checked={settings.autoStartOnBattery} onChange={handleAutoStartOnBatteryChange} />
       </SettingItem>
 
       <SettingItem
