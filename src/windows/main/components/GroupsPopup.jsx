@@ -40,6 +40,7 @@ const SortableGroupItem = ({ group, isActive, onSelect, onEdit, onDelete, t, com
     <div
       ref={setNodeRef}
       style={style}
+      data-group-name={group.name}
       onClick={() => onSelect(group.name)}
       className="group relative w-full"
     >
@@ -146,6 +147,9 @@ const GroupsPopup = forwardRef(({
   const closeTimerRef = useRef(null);
   const animationTimerRef = useRef(null);
   const sidebarCollapseTimerRef = useRef(null);
+  const previousSidebarCollapsedRef = useRef(false);
+  const listContainerRef = useRef(null);
+  const pendingCloseRef = useRef(false);
   const isSidebarMode = mode === 'sidebar' || mode === 'tab-sidebar';
   const isTabMode = mode === 'tab';
 
@@ -293,40 +297,132 @@ const GroupsPopup = forwardRef(({
     setIsPinned(!isPinned);
   };
 
+  // sidebar 模式下自动收起面板并恢复用户原始折叠状态
+  const scheduleSidebarAutoClose = () => {
+    if (sidebarCollapseTimerRef.current) {
+      clearTimeout(sidebarCollapseTimerRef.current);
+    }
+    sidebarCollapseTimerRef.current = setTimeout(() => {
+      setIsOpen(false);
+      setIsSidebarCollapsed(previousSidebarCollapsedRef.current);
+      sidebarCollapseTimerRef.current = null;
+    }, 1200);
+  };
+
   // 临时显示分组面板
-  const showTemporarily = () => {
+  const showTemporarily = (groupName) => {
+    const targetGroup = groupName || groups.currentGroup;
+    const doScroll = () => {
+      if (targetGroup) {
+        scrollToActiveGroup(targetGroup);
+      }
+    };
+
     if (isSidebarMode) {
       if (isOpen && !isSidebarCollapsed) {
+        // 已展开，立即滚动并重置关闭定时器
+        doScroll();
+        scheduleSidebarAutoClose();
         return;
       }
 
-      if (sidebarCollapseTimerRef.current) {
-        clearTimeout(sidebarCollapseTimerRef.current);
-        sidebarCollapseTimerRef.current = null;
-      }
-
-      const previousCollapsedState = isSidebarCollapsed;
+      previousSidebarCollapsedRef.current = isSidebarCollapsed;
       setIsOpen(true);
       setIsSidebarCollapsed(false);
-      sidebarCollapseTimerRef.current = setTimeout(() => {
-        setIsOpen(false);
-        setIsSidebarCollapsed(previousCollapsedState);
-        sidebarCollapseTimerRef.current = null;
-      }, 1200);
+      // 面板已打开但收起时，等展开过渡动画完成（对应 sidebar duration-200）；否则双重 RAF 确保挂载
+      if (isOpen && isSidebarCollapsed) {
+        setTimeout(doScroll, 200);
+      } else {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            doScroll();
+          });
+        });
+      }
+      scheduleSidebarAutoClose();
       return;
     }
 
-    if (closeTimerRef.current) {
-      clearTimeout(closeTimerRef.current);
-      closeTimerRef.current = null;
-    }
+    const scheduleCloseAfterScroll = () => {
+      if (!isPinned && pendingCloseRef.current) {
+        if (closeTimerRef.current) {
+          clearTimeout(closeTimerRef.current);
+        }
+        closeTimerRef.current = setTimeout(() => {
+          closeTimerRef.current = null;
+          handleClose();
+        }, 500);
+      }
+    };
+    const doScrollAndScheduleClose = () => {
+      if (targetGroup) {
+        scrollToActiveGroup(targetGroup, () => {
+          scheduleCloseAfterScroll();
+        });
+      } else {
+        scheduleCloseAfterScroll();
+      }
+    };
+    pendingCloseRef.current = true;
     if (!isOpen) {
       setIsOpen(true);
+      if (uiAnimationEnabled) {
+        setTimeout(doScrollAndScheduleClose, 250);
+      } else {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            doScrollAndScheduleClose();
+          });
+        });
+      }
+    } else {
+      doScrollAndScheduleClose();
     }
-    if (!isPinned) {
-      closeTimerRef.current = setTimeout(() => {
-        handleClose();
+  };
+
+  const scrollToActiveGroup = (groupName, onScrollEnd) => {
+    const container = listContainerRef.current;
+    if (!container || !groupName) {
+      onScrollEnd?.();
+      return;
+    }
+    const items = container.querySelectorAll('[data-group-name]');
+    let activeEl = null;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].dataset.groupName === groupName) {
+        activeEl = items[i];
+        break;
+      }
+    }
+    if (!activeEl) {
+      onScrollEnd?.();
+      return;
+    }
+    const containerRect = container.getBoundingClientRect();
+    const elementRect = activeEl.getBoundingClientRect();
+    let targetScrollTop = container.scrollTop;
+    if (elementRect.top < containerRect.top) {
+      targetScrollTop -= containerRect.top - elementRect.top;
+    } else if (elementRect.bottom > containerRect.bottom) {
+      targetScrollTop += elementRect.bottom - containerRect.bottom;
+    }
+    if (targetScrollTop !== container.scrollTop) {
+      let settled = false;
+      const onSettle = () => {
+        if (settled) return;
+        settled = true;
+        onScrollEnd?.();
+      };
+      container.addEventListener('scrollend', onSettle, { once: true });
+      container.scrollTo({ top: targetScrollTop, behavior: 'smooth' });
+      setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        container.removeEventListener('scrollend', onSettle);
+        onScrollEnd?.();
       }, 500);
+    } else {
+      onScrollEnd?.();
     }
   };
 
@@ -342,6 +438,7 @@ const GroupsPopup = forwardRef(({
     if (isClosing) {
       return;
     }
+    pendingCloseRef.current = false;
     if (closeTimerRef.current) {
       clearTimeout(closeTimerRef.current);
       closeTimerRef.current = null;
@@ -469,6 +566,7 @@ const GroupsPopup = forwardRef(({
     const row = (
       <div
         key={group.name}
+        data-group-name={group.name}
         onClick={() => handleSelectGroup(group.name)}
         className="group relative w-full"
       >
@@ -592,7 +690,7 @@ const GroupsPopup = forwardRef(({
               )}
             </div>
 
-          <div className={`flex-1 min-h-0 overflow-y-auto py-1 ${isSidebarCollapsed ? 'px-1' : 'px-2'}`}>
+          <div ref={listContainerRef} className={`flex-1 min-h-0 overflow-y-auto py-1 ${isSidebarCollapsed ? 'px-1' : 'px-2'}`}>
             <div className="flex flex-col gap-1 items-stretch w-full min-w-0">
               {renderAllGroupRows(isSidebarCollapsed)}
               {renderSortableGroupList(isSidebarCollapsed)}
@@ -691,10 +789,11 @@ const GroupsPopup = forwardRef(({
             </div>
 
             {/* 分组列表 */}
-            <div className="flex-1 overflow-y-auto py-1">
+            <div ref={listContainerRef} className="flex-1 overflow-y-auto py-1">
               {groups.groups.filter(g => g.name === '全部').map(group => (
                 <div
                   key={group.name}
+                  data-group-name={group.name}
                   onClick={() => handleSelectGroup(group.name)}
                   className="group relative"
                 >

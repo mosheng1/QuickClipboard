@@ -429,7 +429,7 @@ function App() {
     groupsStore.setCurrentGroup(prevGroup.name);
     handleGroupChange(prevGroup.name);
     if (groupsPopupRef.current?.showTemporarily) {
-      groupsPopupRef.current.showTemporarily();
+      groupsPopupRef.current.showTemporarily(prevGroup.name);
     }
   };
 
@@ -449,7 +449,7 @@ function App() {
     groupsStore.setCurrentGroup(nextGroup.name);
     handleGroupChange(nextGroup.name);
     if (groupsPopupRef.current?.showTemporarily) {
-      groupsPopupRef.current.showTemporarily();
+      groupsPopupRef.current.showTemporarily(nextGroup.name);
     }
   };
 
