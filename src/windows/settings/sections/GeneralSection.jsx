@@ -21,7 +21,6 @@ function GeneralSection({
   } = useTranslation();
   const [autoStartLoading, setAutoStartLoading] = useState(false);
   const [autoStartSynced, setAutoStartSynced] = useState(false);
-  const [autoStartMismatch, setAutoStartMismatch] = useState(false);
   const [runAsAdminLoading, setRunAsAdminLoading] = useState(false);
   const [currentlyRunningAsAdmin, setCurrentlyRunningAsAdmin] = useState(false);
 
@@ -31,9 +30,12 @@ function GeneralSection({
       try {
         const systemStatus = await getAutoStartStatus();
         if (systemStatus !== settings.autoStart) {
-          setAutoStartMismatch(true);
           console.warn('开机自启动状态不一致 - 系统:', systemStatus, '配置:', settings.autoStart);
-          await onSettingChange('autoStart', systemStatus);
+          try {
+            await setAutoStart(settings.autoStart);
+          } catch (setError) {
+            toast.error(t('settings.general.autoStartFailed'));
+          }
         }
         setAutoStartSynced(true);
       } catch (error) {

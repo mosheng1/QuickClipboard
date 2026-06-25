@@ -408,7 +408,23 @@ pub fn run() {
                 
                 startup_diagnostics::set_startup_stage("执行 setup：加载设置");
                 let mut settings = get_settings();
-                
+
+                startup_diagnostics::set_startup_stage("执行 setup：同步开机自启注册表");
+                #[cfg(desktop)]
+                {
+                    use tauri_plugin_autostart::ManagerExt;
+                    let autostart_manager = app.autolaunch();
+                    if let Ok(current) = autostart_manager.is_enabled() {
+                        if current != settings.auto_start {
+                            if settings.auto_start {
+                                let _ = autostart_manager.enable();
+                            } else {
+                                let _ = autostart_manager.disable();
+                            }
+                        }
+                    }
+                }
+
                 if let Some((w, h)) = settings.saved_window_size.filter(|_| settings.remember_window_size) {
                     windows::main_window::apply_saved_window_size(&window, w, h);
                 }
