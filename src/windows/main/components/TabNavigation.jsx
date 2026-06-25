@@ -178,7 +178,7 @@ function TabNavigation({
     const isHiddenInCollapsedState = !shouldExpandFilters && activeFilterIndex >= collapsedVisibleFilterCount;
 
     if (isHiddenInCollapsedState) {
-      setFilterIndicator({ width: 0, left: 0 });
+      setFilterIndicator(prev => ({ ...prev, width: 0 }));
       return;
     }
 
@@ -355,7 +355,14 @@ function TabNavigation({
     const isHiddenInCollapsed = !shouldExpandFilters && activeFilterIndex >= collapsedVisibleFilterCount;
 
     if (isHiddenInCollapsed) {
+      stopTracking();
       updateFilterIndicatorRef.current();
+      const el = indicatorElRef.current;
+      if (el) {
+        el.style.transition = 'none';
+        el.style.width = '0px';
+        requestAnimationFrame(() => { el.style.transition = ''; });
+      }
       return;
     }
 
@@ -386,7 +393,9 @@ function TabNavigation({
 
   useEffect(() => {
     setIsFilterExpanded(false);
-  }, [activeTab]);
+    stopTracking();
+    finishTracking();
+  }, [activeTab, stopTracking, finishTracking]);
 
   useEffect(() => {
     if (isSidebarLayout) {
