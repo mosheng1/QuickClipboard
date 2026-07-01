@@ -363,6 +363,7 @@ pub fn run() {
                 services::store::init(app.handle());
                 startup_diagnostics::set_startup_stage("执行 setup：初始化低占用状态");
                 services::low_memory::init_window_activity_timestamp();
+                services::low_memory::init_auto_low_memory_manager(app.handle().clone());
                 startup_diagnostics::set_startup_stage("执行 setup：初始化低占用面板");
                 services::low_memory::init_panel(app.handle().clone())?;
                 #[cfg(desktop)]

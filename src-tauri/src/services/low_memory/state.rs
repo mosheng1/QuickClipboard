@@ -34,6 +34,24 @@ pub fn init_window_activity_timestamp() {
     mark_window_activity();
 }
 
+/// Pure decision for the auto low-memory idle watcher. Returns true only when
+/// the feature is enabled, no tracked window is currently visible, activity has
+/// been recorded at least once (`last_activity_ms != 0`), and the elapsed idle
+/// time has reached the threshold.
+pub fn should_enter_low_memory(
+    enabled: bool,
+    any_window_visible: bool,
+    last_activity_ms: u64,
+    now_ms: u64,
+    idle_threshold_ms: u64,
+) -> bool {
+    if !enabled || any_window_visible || last_activity_ms == 0 {
+        return false;
+    }
+
+    now_ms.saturating_sub(last_activity_ms) >= idle_threshold_ms
+}
+
 pub fn try_mark_auto_manager_started() -> bool {
     !AUTO_MANAGER_STARTED.swap(true, Ordering::SeqCst)
 }
@@ -56,4 +74,35 @@ pub fn try_start_exit_low_memory() -> bool {
 // 完成退出低占用模式
 pub fn finish_exit_low_memory() {
     EXITING_LOW_MEMORY.store(false, Ordering::SeqCst);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn should_enter_when_hidden_and_idle_reaches_threshold() {
+        assert!(should_enter_low_memory(true, false, 1_000, 62_000, 60_000));
+    }
+
+    #[test]
+    fn should_not_enter_when_window_visible() {
+        assert!(!should_enter_low_memory(true, true, 1_000, 61_000, 60_000));
+    }
+
+    #[test]
+    fn should_not_enter_when_disabled() {
+        assert!(!should_enter_low_memory(false, false, 1_000, 61_000, 60_000));
+    }
+
+    #[test]
+    fn should_not_enter_without_recorded_activity() {
+        assert!(!should_enter_low_memory(true, false, 0, 30_000, 60_000));
+    }
+
+    #[test]
+    fn should_enter_at_threshold_boundary_only() {
+        assert!(should_enter_low_memory(true, false, 1_000, 61_000, 60_000));
+        assert!(!should_enter_low_memory(true, false, 1_000, 60_999, 60_000));
+    }
 }

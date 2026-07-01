@@ -7,6 +7,7 @@ use super::state::{
     mark_window_activity,
     set_low_memory_mode,
     set_user_requested_exit,
+    should_enter_low_memory,
     try_mark_auto_manager_started,
     try_start_exit_low_memory,
     finish_exit_low_memory,
@@ -170,7 +171,13 @@ pub fn init_auto_low_memory_manager(app: AppHandle) {
                 .map(|duration| duration.as_millis() as u64)
                 .unwrap_or(last_activity_at_ms);
 
-            if now_ms.saturating_sub(last_activity_at_ms) < idle_threshold_ms {
+            if !should_enter_low_memory(
+                settings.auto_low_memory_enabled,
+                false,
+                last_activity_at_ms,
+                now_ms,
+                idle_threshold_ms,
+            ) {
                 continue;
             }
 
