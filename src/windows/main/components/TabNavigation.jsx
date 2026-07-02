@@ -80,6 +80,18 @@ function TabNavigation({
   const sidebarTabsMainRef = useRef(null);
   const filterCollapseTimerRef = useRef(null);
 
+  // 指示器实时跟踪：CSS flex 过渡期间按钮位置持续变化，
+  // ResizeObserver 观察尺寸变化 + transitionend 收尾，
+  // 直设 DOM style 绕过 React state 的批量更新延迟
+  const expandableContainerRef = useRef(null);
+  const groupBtnContainerRef = useRef(null);
+  const indicatorElRef = useRef(null);
+  const isTrackingRef = useRef(false);
+  const observerRef = useRef(null);
+  const observedTargetRef = useRef(null);
+  const contentFilterRef = useRef(contentFilter);
+  const prevContentFilterRef = useRef(contentFilter);
+
   const allTabs = [{
     id: 'clipboard',
     label: t('clipboard.title') || '剪贴板',
@@ -166,22 +178,74 @@ function TabNavigation({
     const isHiddenInCollapsedState = !shouldExpandFilters && activeFilterIndex >= collapsedVisibleFilterCount;
 
     if (isHiddenInCollapsedState) {
-      setFilterIndicator({
-        width: 0,
-        left: 0
-      });
+      setFilterIndicator(prev => ({ ...prev, width: 0 }));
       return;
     }
 
     if (!activeElement) {
       return;
     }
-
     setFilterIndicator({
       width: activeElement.offsetWidth,
       left: activeElement.offsetLeft
     });
   }, [contentFilter, shouldExpandFilters, collapsedVisibleFilterCount]);
+
+  const updateFilterIndicatorRef = useRef(updateFilterIndicator);
+
+  // stopTracking: 断开 ResizeObserver，标志位清零。不恢复 CSS transition
+  //   （由调用方的 finishTracking 或 Bug 2 路径自行处理）
+  const stopTracking = useCallback(() => {
+    if (!isTrackingRef.current) return;
+    isTrackingRef.current = false;
+    observerRef.current?.disconnect();
+    observerRef.current = null;
+    observedTargetRef.current = null;
+  }, []);
+
+  // finishTracking: 同步 React state 到最终 DOM 位置，然后恢复 CSS transition。
+  //   transition 恢复推迟到 rAF 避免触发 CSS 属性变化的过渡动画
+  const finishTracking = useCallback(() => {
+    updateFilterIndicatorRef.current();
+    requestAnimationFrame(() => {
+      const el = indicatorElRef.current;
+      if (el) el.style.transition = '';
+    });
+  }, []);
+
+  // startTracking: 启动 ResizeObserver，连接指示器到按钮/容器的尺寸变化。
+  //   观察策略：按钮在 expandable 容器内 → 观容器（捕获固定宽度按钮位移），
+  //   否则 → 观按钮自身（捕获 flex 拉伸尺寸变化）。
+  //   sync() 通过 contentFilterRef 间接读取当前按钮，支持跟踪中切换过滤器
+  const startTracking = useCallback(() => {
+    if (isTrackingRef.current) return;
+    const el = indicatorElRef.current;
+    const btn = filtersRef.current[contentFilterRef.current];
+    if (!el || !btn) return;
+
+    isTrackingRef.current = true;
+    el.style.transition = 'none';
+
+    const sync = () => {
+      if (!isTrackingRef.current) return;
+      const btn = filtersRef.current[contentFilterRef.current];
+      if (!btn) return;
+      el.style.left = btn.offsetLeft + 'px';
+      el.style.width = btn.offsetWidth + 'px';
+    };
+    sync();
+
+    const obs = new ResizeObserver(sync);
+    const container = expandableContainerRef.current;
+    if (container && container.contains(btn)) {
+      obs.observe(container);
+      observedTargetRef.current = container;
+    } else {
+      obs.observe(btn);
+      observedTargetRef.current = btn;
+    }
+    observerRef.current = obs;
+  }, []);
 
   const updateEmojiModeIndicator = useCallback(() => {
     const activeElement = emojiModesRef.current[emojiMode];
@@ -201,6 +265,60 @@ function TabNavigation({
       }
     };
   }, []);
+
+  useEffect(() => {
+    updateFilterIndicatorRef.current = updateFilterIndicator;
+    contentFilterRef.current = contentFilter;
+    if (!isTrackingRef.current || !observerRef.current) {
+      prevContentFilterRef.current = contentFilter;
+      return;
+    }
+    const btn = filtersRef.current[contentFilter];
+    if (!btn) return;
+    const container = expandableContainerRef.current;
+    const target = container && container.contains(btn) ? container : btn;
+    if (target !== observedTargetRef.current) {
+      observerRef.current.disconnect();
+      observerRef.current.observe(target);
+      observedTargetRef.current = target;
+    } else if (contentFilter !== prevContentFilterRef.current) {
+      const el = indicatorElRef.current;
+      if (el) {
+        el.style.left = btn.offsetLeft + 'px';
+        el.style.width = btn.offsetWidth + 'px';
+      }
+    }
+    prevContentFilterRef.current = contentFilter;
+  });
+
+  useEffect(() => {
+    if (isSidebarLayout) {
+      return undefined;
+    }
+
+    const expandable = expandableContainerRef.current;
+    const groupBtn = groupBtnContainerRef.current;
+
+    let pending = false;
+
+    const handleEnd = (e) => {
+      if (e.propertyName !== 'width') return;
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(() => {
+        stopTracking();
+        finishTracking();
+        pending = false;
+      });
+    };
+
+    expandable?.addEventListener('transitionend', handleEnd);
+    groupBtn?.addEventListener('transitionend', handleEnd);
+    return () => {
+      expandable?.removeEventListener('transitionend', handleEnd);
+      groupBtn?.removeEventListener('transitionend', handleEnd);
+    };
+  }, [isSidebarLayout, collapsedVisibleFilterCount, stopTracking]);
 
   useEffect(() => {
     if (isSidebarLayout) {
@@ -223,8 +341,33 @@ function TabNavigation({
   }, [isSidebarLayout]);
 
   useEffect(() => {
-    updateFilterIndicator();
-  }, [updateFilterIndicator, activeTab, tabs.length, horizontalRightAreaPercent, collapsedVisibleFilterCount, shouldExpandFilters]);
+    if (isTrackingRef.current) return;
+    updateFilterIndicatorRef.current();
+  }, [contentFilter, activeTab, horizontalRightAreaPercent, collapsedVisibleFilterCount]);
+
+  // 折叠/展开过渡处理：
+  //   Bug 1（可见过滤器）→ 启动 ResizeObserver 实时跟踪
+  //   Bug 2（选中过滤器被折叠）→ 立即停跟踪 + 宽度归零
+  useEffect(() => {
+    if (isSidebarLayout || activeTab === 'emoji') return;
+
+    const activeFilterIndex = FILTER_IDS.indexOf(contentFilter);
+    const isHiddenInCollapsed = !shouldExpandFilters && activeFilterIndex >= collapsedVisibleFilterCount;
+
+    if (isHiddenInCollapsed) {
+      stopTracking();
+      updateFilterIndicatorRef.current();
+      const el = indicatorElRef.current;
+      if (el) {
+        el.style.transition = 'none';
+        el.style.width = '0px';
+        requestAnimationFrame(() => { el.style.transition = ''; });
+      }
+      return;
+    }
+
+    startTracking();
+  }, [shouldExpandFilters, startTracking]);
 
   useEffect(() => {
     if (activeTab === 'emoji') {
@@ -250,7 +393,9 @@ function TabNavigation({
 
   useEffect(() => {
     setIsFilterExpanded(false);
-  }, [activeTab]);
+    stopTracking();
+    finishTracking();
+  }, [activeTab, stopTracking, finishTracking]);
 
   useEffect(() => {
     if (isSidebarLayout) {
@@ -614,7 +759,7 @@ function TabNavigation({
           onMouseLeave={activeTab === 'emoji' ? undefined : handleFilterAreaMouseLeave}
         >
           {!isSidebarLayout && (
-            <div className={`absolute rounded-lg pointer-events-none ${uiAnimationEnabled ? 'transition-all duration-300 ease-out' : ''}`} style={{
+            <div ref={indicatorElRef} className={`absolute rounded-lg pointer-events-none ${uiAnimationEnabled ? 'transition-all duration-300 ease-out' : ''}`} style={{
               width: `${activeTab === 'emoji' ? emojiModeIndicator.width : filterIndicator.width}px`,
               height: '28px',
               left: `${activeTab === 'emoji' ? emojiModeIndicator.left : filterIndicator.left}px`,
@@ -709,6 +854,7 @@ function TabNavigation({
                         </div>
                       ) : (
                         <div
+                          ref={expandableContainerRef}
                           className={`flex items-center gap-1 overflow-hidden shrink-0 min-w-0 ${uiAnimationEnabled ? 'transition-all duration-300 ease-out' : ''}`}
                           style={{
                             width: shouldExpandFilters ? `${expandedExtraWidth}px` : '0px',
@@ -736,6 +882,7 @@ function TabNavigation({
                   )}
 
                   <div
+                    ref={groupBtnContainerRef}
                     className={`overflow-visible shrink-0 ${uiAnimationEnabled ? 'transition-all duration-300 ease-out' : ''}`}
                     style={{
                       width: shouldHideGroupButton ? '0px' : `${groupButtonWidth}px`,
