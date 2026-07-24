@@ -14,7 +14,8 @@
     "tauri:build:community": "node scripts/community-build.js",
     "check:community": "node scripts/community-check.js check",
     "clippy:community": "node scripts/community-check.js clippy",
-    "test:rust": "node scripts/community-check.js test"
+    "test:rust": "node scripts/community-check.js test",
+    "test:text-editor": "node --test src/windows/textEditor/savePayload.test.js"
   },
   "devDependencies": {
     "@tauri-apps/cli": "^2.11.2",

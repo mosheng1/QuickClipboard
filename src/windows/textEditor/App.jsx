@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSnapshot } from 'valtio';
 import { settingsStore, initSettings } from '@shared/store/settingsStore';
@@ -20,6 +20,7 @@ import TextEditor from './components/TextEditor';
 import HtmlEditor from './components/HtmlEditor';
 import StatusBar from './components/StatusBar';
 import ToastContainer from '@shared/components/common/ToastContainer';
+import { resolveEditorSavePayload } from './savePayload';
 
 function resolveEditableTypes(contentType, htmlContent) {
   const normalizedType = String(contentType || '');
@@ -55,6 +56,7 @@ function App() {
   const [originalTextContent, setOriginalTextContent] = useState('');
   const [originalHtmlContent, setOriginalHtmlContent] = useState('');
   const [originalTitle, setOriginalTitle] = useState('');
+  const lastEditedModeRef = useRef(null);
 
   const [hasChanges, setHasChanges] = useState(false);
   const [charCount, setCharCount] = useState(0);
@@ -199,12 +201,15 @@ function App() {
     if (!editorData) return;
 
     try {
-      const htmlPayload = editableTypes.includes('html') ? htmlContent : undefined;
-      const htmlChanged = htmlPayload !== undefined && htmlPayload !== originalHtmlContent;
-      const textUnchanged = textContent === originalTextContent;
-      const contentForSave = htmlChanged && textUnchanged
-        ? extractPlainTextFromHtml(htmlPayload)
-        : textContent;
+      const { contentForSave, htmlPayload } = resolveEditorSavePayload({
+        supportsHtml: editableTypes.includes('html'),
+        textContent,
+        htmlContent,
+        originalTextContent,
+        originalHtmlContent,
+        lastEditedMode: lastEditedModeRef.current,
+        extractPlainTextFromHtml,
+      });
 
       if (editorData.type === 'clipboard') {
         await updateClipboardItem(editorData.id, contentForSave, htmlPayload);
@@ -283,7 +288,10 @@ function App() {
         {editMode === 'html' && editableTypes.includes('html') ? (
           <HtmlEditor
             content={htmlContent}
-            onContentChange={setHtmlContent}
+            onContentChange={(content) => {
+              lastEditedModeRef.current = 'html';
+              setHtmlContent(content);
+            }}
             onStatsChange={({ chars, lines }) => {
               setCharCount(chars);
               setLineCount(lines);
@@ -293,7 +301,10 @@ function App() {
         ) : (
           <TextEditor
             content={textContent}
-            onContentChange={setTextContent}
+            onContentChange={(content) => {
+              lastEditedModeRef.current = 'text';
+              setTextContent(content);
+            }}
             onStatsChange={({ chars, lines }) => {
               setCharCount(chars);
               setLineCount(lines);
