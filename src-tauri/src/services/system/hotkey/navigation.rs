@@ -268,6 +268,16 @@ fn should_suspend_navigation_hotkeys() -> bool {
     !super::global::is_hotkeys_enabled()
         || !crate::get_settings().hotkeys_enabled
         || crate::services::system::is_front_app_globally_disabled_from_settings()
+        // 主窗口隐藏时必须注销导航快捷键，避免 ESC/Tab/Enter/方向键等单键
+        // 被注册为全局热键后从其他应用中被“偷走”
+        || !is_main_window_visible()
+}
+
+fn is_main_window_visible() -> bool {
+    get_app()
+        .ok()
+        .map(|app| crate::windows::main_window::is_main_window_visible(&app))
+        .unwrap_or(false)
 }
 
 fn emit_navigation_action_if_ready(action: &str) -> bool {
