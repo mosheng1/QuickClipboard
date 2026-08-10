@@ -17,40 +17,10 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Add GitHub to known hosts
-        run: |
-          mkdir -p ~/.ssh
-          ssh-keyscan github.com >> ~/.ssh/known_hosts
-        shell: bash
-
-      - name: Prepare SSH keys
-        run: |
-          mkdir -p ~/.ssh
-
-          cat > ~/.ssh/screenshot-suite.key <<'EOF'
-          ${{ secrets.SCREENSHOT_SUITE_DEPLOY_KEY }}
-          EOF
-          chmod 600 ~/.ssh/screenshot-suite.key
-
-          cat > ~/.ssh/gpu-image-viewer.key <<'EOF'
-          ${{ secrets.GPU_VIEWER_DEPLOY_KEY }}
-          EOF
-          chmod 600 ~/.ssh/gpu-image-viewer.key
-        shell: bash
-
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-
-      - name: Checkout submodules (SSH)
-        run: |
-          git config --global --unset-all url.https://github.com/.insteadOf || true
-          git submodule sync --recursive
-          git submodule update --init --force --depth=1 --recursive
-        shell: bash
-        env:
-          GIT_SSH_COMMAND: ssh -i ~/.ssh/screenshot-suite.key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes
 
       - name: Configure Cargo to use git CLI
         run: |
@@ -66,7 +36,6 @@ jobs:
           cache: 'npm'
           cache-dependency-path: |
             package-lock.json
-            src-tauri/plugins/screenshot-suite/web/package-lock.json
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -86,7 +55,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ""
-          GIT_SSH_COMMAND: ssh -i ~/.ssh/gpu-image-viewer.key -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'QuickClipboard ${{ github.ref_name }}'

@@ -30,6 +30,3 @@ docs
 scap-main
 /plugins
 QuickClipboardWeb
-screenshot_Konva
-/src/windows/screenshot
-/src-tauri/plugins/gpu-image-viewer
