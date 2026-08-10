@@ -35,8 +35,3 @@ export async function moveFavoriteToGroup(id, groupName) {
   return await invoke('move_quick_text_to_group', { id, groupName })
 }
 
-// 从剪贴板添加到分组
-export async function addClipboardToGroup(index, groupName) {
-  return await invoke('add_clipboard_to_group', { index, groupName })
-}
-

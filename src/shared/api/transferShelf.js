@@ -8,10 +8,6 @@ export async function listTransferShelves() {
   return await invoke('transfer_shelf_list');
 }
 
-export async function focusTransferShelf(id) {
-  return await invoke('transfer_shelf_focus', { id });
-}
-
 export async function renameTransferShelf(id, name) {
   return await invoke('transfer_shelf_rename', { id, name });
 }
@@ -52,6 +48,3 @@ export async function saveTransferShelfGeometry(id) {
   return await invoke('transfer_shelf_save_geometry', { id });
 }
 
-export async function applyTransferShelfGeometry(id) {
-  return await invoke('transfer_shelf_apply_geometry', { id });
-}
