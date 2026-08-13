@@ -1,3 +1,5 @@
+use crate::services::get_data_directory;
+use serde::{Deserialize, Serialize};
 use std::{
     cmp::Ordering,
     collections::HashMap,
@@ -5,8 +7,6 @@ use std::{
     path::{Path, PathBuf},
     time::Duration,
 };
-use serde::{Deserialize, Serialize};
-use crate::services::get_data_directory;
 
 const IMAGE_LIBRARY_DIR: &str = "image_library";
 const GROUPS_META_FILE: &str = "groups.json";
@@ -69,8 +69,7 @@ fn get_groups_meta_path() -> Result<PathBuf, String> {
 fn ensure_default_group_dir(root: &Path) -> Result<PathBuf, String> {
     let default_dir = root.join(DEFAULT_GROUP_NAME);
     if !default_dir.is_dir() {
-        fs::create_dir_all(&default_dir)
-            .map_err(|e| format!("创建默认图库分组失败: {}", e))?;
+        fs::create_dir_all(&default_dir).map_err(|e| format!("创建默认图库分组失败: {}", e))?;
     }
     Ok(default_dir)
 }
@@ -95,8 +94,7 @@ pub fn init_image_library() -> Result<(), String> {
 fn ensure_initialized() -> Result<(), String> {
     let root = get_image_library_dir()?;
     if !root.exists() {
-        fs::create_dir_all(&root)
-            .map_err(|e| format!("创建图库目录失败: {}", e))?;
+        fs::create_dir_all(&root).map_err(|e| format!("创建图库目录失败: {}", e))?;
     }
 
     let meta_path = get_groups_meta_path()?;
@@ -119,11 +117,10 @@ fn migrate_legacy_category_dirs(root: &Path) -> Result<(), String> {
             continue;
         }
 
-        fs::create_dir_all(&default_dir)
-            .map_err(|e| format!("创建默认图库分组失败: {}", e))?;
+        fs::create_dir_all(&default_dir).map_err(|e| format!("创建默认图库分组失败: {}", e))?;
 
-        let entries = fs::read_dir(&legacy_dir)
-            .map_err(|e| format!("读取旧图库目录失败: {}", e))?;
+        let entries =
+            fs::read_dir(&legacy_dir).map_err(|e| format!("读取旧图库目录失败: {}", e))?;
         for entry in entries.filter_map(|e| e.ok()) {
             let path = entry.path();
             if !path.is_file() {
@@ -132,8 +129,7 @@ fn migrate_legacy_category_dirs(root: &Path) -> Result<(), String> {
 
             let filename = entry.file_name().to_string_lossy().to_string();
             let target = unique_file_path(&default_dir, &filename);
-            fs::rename(&path, &target)
-                .map_err(|e| format!("迁移旧图库文件失败: {}", e))?;
+            fs::rename(&path, &target).map_err(|e| format!("迁移旧图库文件失败: {}", e))?;
             migrated = true;
         }
 
@@ -158,8 +154,7 @@ fn scan_group_names(root: &Path) -> Result<Vec<String>, String> {
     }
 
     let mut names = Vec::new();
-    let entries = fs::read_dir(root)
-        .map_err(|e| format!("读取图库分组失败: {}", e))?;
+    let entries = fs::read_dir(root).map_err(|e| format!("读取图库分组失败: {}", e))?;
 
     for entry in entries.filter_map(|e| e.ok()) {
         let path = entry.path();
@@ -182,8 +177,8 @@ fn load_group_metadata() -> Result<GroupsMetadata, String> {
         return Ok(GroupsMetadata::default());
     }
 
-    let content = fs::read_to_string(&meta_path)
-        .map_err(|e| format!("读取图库分组配置失败: {}", e))?;
+    let content =
+        fs::read_to_string(&meta_path).map_err(|e| format!("读取图库分组配置失败: {}", e))?;
     Ok(serde_json::from_str(&content).unwrap_or_default())
 }
 
@@ -192,8 +187,7 @@ fn save_group_metadata(groups: Vec<GroupMeta>) -> Result<(), String> {
     let metadata = GroupsMetadata { groups };
     let content = serde_json::to_string_pretty(&metadata)
         .map_err(|e| format!("序列化图库分组配置失败: {}", e))?;
-    fs::write(&meta_path, content)
-        .map_err(|e| format!("保存图库分组配置失败: {}", e))
+    fs::write(&meta_path, content).map_err(|e| format!("保存图库分组配置失败: {}", e))
 }
 
 fn sync_group_metadata_internal() -> Result<Vec<ImageGroupInfo>, String> {
@@ -219,11 +213,13 @@ fn sync_group_metadata_internal() -> Result<Vec<ImageGroupInfo>, String> {
                 max_order += 1;
                 max_order
             });
-            let icon = meta.as_ref()
+            let icon = meta
+                .as_ref()
                 .map(|m| m.icon.clone())
                 .filter(|v| !v.trim().is_empty())
                 .unwrap_or_else(|| DEFAULT_GROUP_ICON.to_string());
-            let color = meta.as_ref()
+            let color = meta
+                .as_ref()
                 .map(|m| m.color.clone())
                 .filter(|v| !v.trim().is_empty())
                 .unwrap_or_else(|| DEFAULT_GROUP_COLOR.to_string());
@@ -239,13 +235,13 @@ fn sync_group_metadata_internal() -> Result<Vec<ImageGroupInfo>, String> {
         })
         .collect();
 
-    groups.sort_by(|a, b| {
-        match (a.name == DEFAULT_GROUP_NAME, b.name == DEFAULT_GROUP_NAME) {
+    groups.sort_by(
+        |a, b| match (a.name == DEFAULT_GROUP_NAME, b.name == DEFAULT_GROUP_NAME) {
             (true, false) => Ordering::Less,
             (false, true) => Ordering::Greater,
             _ => a.order.cmp(&b.order).then_with(|| a.name.cmp(&b.name)),
-        }
-    });
+        },
+    );
 
     let normalized_groups: Vec<ImageGroupInfo> = groups
         .into_iter()
@@ -256,12 +252,17 @@ fn sync_group_metadata_internal() -> Result<Vec<ImageGroupInfo>, String> {
         })
         .collect();
 
-    save_group_metadata(normalized_groups.iter().map(|group| GroupMeta {
-        name: group.name.clone(),
-        icon: group.icon.clone(),
-        color: group.color.clone(),
-        order: group.order,
-    }).collect())?;
+    save_group_metadata(
+        normalized_groups
+            .iter()
+            .map(|group| GroupMeta {
+                name: group.name.clone(),
+                icon: group.icon.clone(),
+                color: group.color.clone(),
+                order: group.order,
+            })
+            .collect(),
+    )?;
 
     Ok(normalized_groups)
 }
@@ -281,8 +282,7 @@ pub fn add_group(name: &str, icon: &str, color: &str) -> Result<ImageGroupInfo, 
         return Err("图库分组已存在".to_string());
     }
 
-    fs::create_dir_all(&dir)
-        .map_err(|e| format!("创建图库分组失败: {}", e))?;
+    fs::create_dir_all(&dir).map_err(|e| format!("创建图库分组失败: {}", e))?;
 
     let mut groups = list_groups()?;
     let order = groups
@@ -290,7 +290,8 @@ pub fn add_group(name: &str, icon: &str, color: &str) -> Result<ImageGroupInfo, 
         .filter(|group| group.name != name)
         .map(|group| group.order)
         .max()
-        .unwrap_or(-1) + 1;
+        .unwrap_or(-1)
+        + 1;
     for group in &mut groups {
         if group.name == name {
             group.icon = clean_icon(icon);
@@ -300,12 +301,17 @@ pub fn add_group(name: &str, icon: &str, color: &str) -> Result<ImageGroupInfo, 
         }
     }
 
-    save_group_metadata(groups.iter().map(|group| GroupMeta {
-        name: group.name.clone(),
-        icon: group.icon.clone(),
-        color: group.color.clone(),
-        order: group.order,
-    }).collect())?;
+    save_group_metadata(
+        groups
+            .iter()
+            .map(|group| GroupMeta {
+                name: group.name.clone(),
+                icon: group.icon.clone(),
+                color: group.color.clone(),
+                order: group.order,
+            })
+            .collect(),
+    )?;
 
     list_groups()?
         .into_iter()
@@ -313,7 +319,12 @@ pub fn add_group(name: &str, icon: &str, color: &str) -> Result<ImageGroupInfo, 
         .ok_or_else(|| "创建图库分组后读取失败".to_string())
 }
 
-pub fn update_group(old_name: &str, new_name: &str, new_icon: &str, new_color: &str) -> Result<ImageGroupInfo, String> {
+pub fn update_group(
+    old_name: &str,
+    new_name: &str,
+    new_icon: &str,
+    new_color: &str,
+) -> Result<ImageGroupInfo, String> {
     ensure_initialized()?;
 
     let old_name = validate_group_name(old_name)?;
@@ -334,27 +345,31 @@ pub fn update_group(old_name: &str, new_name: &str, new_icon: &str, new_color: &
 
     let groups_before = list_groups()?;
     if old_name != new_name {
-        fs::rename(&old_dir, &new_dir)
-            .map_err(|e| format!("重命名图库分组失败: {}", e))?;
+        fs::rename(&old_dir, &new_dir).map_err(|e| format!("重命名图库分组失败: {}", e))?;
     }
 
-    save_group_metadata(groups_before.into_iter().map(|group| {
-        if group.name == old_name {
-            GroupMeta {
-                name: new_name.clone(),
-                icon: clean_icon(new_icon),
-                color: clean_color(new_color),
-                order: group.order,
-            }
-        } else {
-            GroupMeta {
-                name: group.name,
-                icon: group.icon,
-                color: group.color,
-                order: group.order,
-            }
-        }
-    }).collect())?;
+    save_group_metadata(
+        groups_before
+            .into_iter()
+            .map(|group| {
+                if group.name == old_name {
+                    GroupMeta {
+                        name: new_name.clone(),
+                        icon: clean_icon(new_icon),
+                        color: clean_color(new_color),
+                        order: group.order,
+                    }
+                } else {
+                    GroupMeta {
+                        name: group.name,
+                        icon: group.icon,
+                        color: group.color,
+                        order: group.order,
+                    }
+                }
+            })
+            .collect(),
+    )?;
 
     list_groups()?
         .into_iter()
@@ -395,16 +410,31 @@ fn validate_group_name(name: &str) -> Result<String, String> {
         return Err("分组名称不能包含 \\ / : * ? \" < > |".to_string());
     }
 
-    let reserved = name
-        .split('.')
-        .next()
-        .unwrap_or(name)
-        .to_ascii_uppercase();
+    let reserved = name.split('.').next().unwrap_or(name).to_ascii_uppercase();
     if matches!(
         reserved.as_str(),
-        "CON" | "PRN" | "AUX" | "NUL" |
-        "COM1" | "COM2" | "COM3" | "COM4" | "COM5" | "COM6" | "COM7" | "COM8" | "COM9" |
-        "LPT1" | "LPT2" | "LPT3" | "LPT4" | "LPT5" | "LPT6" | "LPT7" | "LPT8" | "LPT9"
+        "CON"
+            | "PRN"
+            | "AUX"
+            | "NUL"
+            | "COM1"
+            | "COM2"
+            | "COM3"
+            | "COM4"
+            | "COM5"
+            | "COM6"
+            | "COM7"
+            | "COM8"
+            | "COM9"
+            | "LPT1"
+            | "LPT2"
+            | "LPT3"
+            | "LPT4"
+            | "LPT5"
+            | "LPT6"
+            | "LPT7"
+            | "LPT8"
+            | "LPT9"
     ) {
         return Err("分组名称是系统保留名称".to_string());
     }
@@ -428,7 +458,10 @@ fn validate_filename(filename: &str) -> Result<String, String> {
 }
 
 fn is_invalid_path_char(c: char) -> bool {
-    matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '\0')
+    matches!(
+        c,
+        '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' | '\0'
+    )
 }
 
 fn get_existing_group_dir(group: &str) -> Result<(String, PathBuf), String> {
@@ -449,8 +482,20 @@ fn is_supported_image_file(path: &Path) -> bool {
         .unwrap_or_default();
     matches!(
         ext.as_str(),
-        "png" | "jpg" | "jpeg" | "gif" | "webp" | "bmp" | "avif" | "svg" |
-        "ico" | "tiff" | "tif" | "heic" | "heif" | "jfif"
+        "png"
+            | "jpg"
+            | "jpeg"
+            | "gif"
+            | "webp"
+            | "bmp"
+            | "avif"
+            | "svg"
+            | "ico"
+            | "tiff"
+            | "tif"
+            | "heic"
+            | "heif"
+            | "jfif"
     )
 }
 
@@ -503,7 +548,8 @@ fn convert_webp_to_jpg(data: &[u8]) -> Result<Vec<u8>, String> {
         .with_guessed_format()
         .map_err(|e| format!("读取 WebP 失败: {}", e))?;
 
-    let img = reader.decode()
+    let img = reader
+        .decode()
         .map_err(|e| format!("解码 WebP 失败: {}", e))?;
 
     let mut buffer = Vec::new();
@@ -525,7 +571,10 @@ fn extract_gif_first_frame(data: &[u8]) -> Option<Vec<u8>> {
 
     let mut buffer = Vec::new();
     let mut cursor = Cursor::new(&mut buffer);
-    first_frame.buffer().write_to(&mut cursor, image::ImageFormat::Png).ok()?;
+    first_frame
+        .buffer()
+        .write_to(&mut cursor, image::ImageFormat::Png)
+        .ok()?;
 
     Some(buffer)
 }
@@ -541,9 +590,7 @@ fn ocr_image_text(data: &[u8]) -> Option<String> {
     let _ = thread::Builder::new()
         .name("il_ocr".to_string())
         .spawn(move || {
-            let res = recognize_from_bytes(&data, None)
-                .ok()
-                .map(|r| r.text);
+            let res = recognize_from_bytes(&data, None).ok().map(|r| r.text);
             let _ = tx.send(res);
         });
 
@@ -617,8 +664,7 @@ fn unique_file_path(dir: &Path, filename: &str) -> PathBuf {
 }
 
 fn move_to_recycle_bin(path: &Path, action: &str) -> Result<(), String> {
-    trash::delete(path)
-        .map_err(|e| format!("{}失败: {}", action, e))
+    trash::delete(path).map_err(|e| format!("{}失败: {}", action, e))
 }
 
 // 保存图片到指定图库分组
@@ -630,16 +676,17 @@ pub fn save_image(group: &str, filename: &str, data: &[u8]) -> Result<ImageInfo,
         .map_err(|e| e.to_string())?
         .as_millis();
 
-    let (final_data, extension): (Vec<u8>, String) = if is_webp_by_magic(data) && !is_animated_webp(data) {
-        let jpg_data = convert_webp_to_jpg(data)?;
-        (jpg_data, "jpg".to_string())
-    } else if is_gif_by_magic(data) {
-        (data.to_vec(), "gif".to_string())
-    } else if is_webp_by_magic(data) {
-        (data.to_vec(), "webp".to_string())
-    } else {
-        (data.to_vec(), extension_from_filename(filename, "png"))
-    };
+    let (final_data, extension): (Vec<u8>, String) =
+        if is_webp_by_magic(data) && !is_animated_webp(data) {
+            let jpg_data = convert_webp_to_jpg(data)?;
+            (jpg_data, "jpg".to_string())
+        } else if is_gif_by_magic(data) {
+            (data.to_vec(), "gif".to_string())
+        } else if is_webp_by_magic(data) {
+            (data.to_vec(), "webp".to_string())
+        } else {
+            (data.to_vec(), extension_from_filename(filename, "png"))
+        };
 
     let ocr_text = if is_gif_by_magic(data) {
         extract_gif_first_frame(data).and_then(|frame| ocr_image_text(&frame))
@@ -658,8 +705,7 @@ pub fn save_image(group: &str, filename: &str, data: &[u8]) -> Result<ImageInfo,
         .unwrap_or(&new_filename)
         .to_string();
 
-    fs::write(&file_path, &final_data)
-        .map_err(|e| format!("保存图片失败: {}", e))?;
+    fs::write(&file_path, &final_data).map_err(|e| format!("保存图片失败: {}", e))?;
 
     Ok(ImageInfo {
         id: final_filename.clone(),
@@ -697,7 +743,8 @@ pub fn get_image_list(group: &str, offset: usize, limit: usize) -> Result<ImageL
         let filename = entry.file_name().to_string_lossy().to_string();
         let metadata = entry.metadata().ok();
 
-        let created_at = metadata.as_ref()
+        let created_at = metadata
+            .as_ref()
             .and_then(|m| m.modified().ok())
             .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
             .map(|d| d.as_millis() as u64)
@@ -739,7 +786,11 @@ pub fn delete_image(group: &str, filename: &str) -> Result<(), String> {
 }
 
 // 重命名图片
-pub fn rename_image(group: &str, old_filename: &str, new_filename: &str) -> Result<ImageInfo, String> {
+pub fn rename_image(
+    group: &str,
+    old_filename: &str,
+    new_filename: &str,
+) -> Result<ImageInfo, String> {
     let (group, dir) = get_existing_group_dir(group)?;
     let old_filename = validate_filename(old_filename)?;
     let old_path = dir.join(&old_filename);
@@ -764,13 +815,16 @@ pub fn rename_image(group: &str, old_filename: &str, new_filename: &str) -> Resu
         return Err("目标文件名已存在".to_string());
     }
 
-    fs::rename(&old_path, &new_path)
-        .map_err(|e| format!("重命名失败: {}", e))?;
+    fs::rename(&old_path, &new_path).map_err(|e| format!("重命名失败: {}", e))?;
 
     image_info_from_path(&group, &new_path)
 }
 
-pub fn move_image_to_group(source_group: &str, filename: &str, target_group: &str) -> Result<ImageInfo, String> {
+pub fn move_image_to_group(
+    source_group: &str,
+    filename: &str,
+    target_group: &str,
+) -> Result<ImageInfo, String> {
     let (source_group, source_dir) = get_existing_group_dir(source_group)?;
     let (target_group, target_dir) = get_existing_group_dir(target_group)?;
     let filename = validate_filename(filename)?;
@@ -785,15 +839,13 @@ pub fn move_image_to_group(source_group: &str, filename: &str, target_group: &st
     }
 
     let target_path = unique_file_path(&target_dir, &filename);
-    fs::rename(&source_path, &target_path)
-        .map_err(|e| format!("移动图片到分组失败: {}", e))?;
+    fs::rename(&source_path, &target_path).map_err(|e| format!("移动图片到分组失败: {}", e))?;
 
     image_info_from_path(&target_group, &target_path)
 }
 
 fn move_regular_files(source_dir: &Path, target_dir: &Path) -> Result<(), String> {
-    let entries = fs::read_dir(source_dir)
-        .map_err(|e| format!("读取图库分组文件失败: {}", e))?;
+    let entries = fs::read_dir(source_dir).map_err(|e| format!("读取图库分组文件失败: {}", e))?;
 
     for entry in entries.filter_map(|e| e.ok()) {
         let source_path = entry.path();
@@ -810,7 +862,10 @@ fn move_regular_files(source_dir: &Path, target_dir: &Path) -> Result<(), String
     Ok(())
 }
 
-pub fn delete_group(name: &str, move_images_to_default: bool) -> Result<Vec<ImageGroupInfo>, String> {
+pub fn delete_group(
+    name: &str,
+    move_images_to_default: bool,
+) -> Result<Vec<ImageGroupInfo>, String> {
     ensure_initialized()?;
 
     let name = validate_group_name(name)?;
@@ -840,8 +895,7 @@ fn image_info_from_path(group: &str, path: &Path) -> Result<ImageInfo, String> {
         .and_then(|name| name.to_str())
         .ok_or_else(|| "文件名无效".to_string())?
         .to_string();
-    let metadata = fs::metadata(path)
-        .map_err(|e| format!("读取图片信息失败: {}", e))?;
+    let metadata = fs::metadata(path).map_err(|e| format!("读取图片信息失败: {}", e))?;
     let created_at = metadata
         .modified()
         .ok()

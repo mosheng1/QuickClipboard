@@ -37,4 +37,3 @@ pub fn create_settings_window(app: &AppHandle) -> Result<(), String> {
 
     Ok(())
 }
-

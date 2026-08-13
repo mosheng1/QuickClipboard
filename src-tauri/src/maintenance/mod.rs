@@ -3,7 +3,7 @@ mod ui;
 use rusqlite::Connection;
 use std::path::PathBuf;
 
-use ui::{App, run_tui};
+use ui::{run_tui, App};
 
 pub fn ensure_bat_file() {
     let exe_path = match std::env::current_exe() {
@@ -71,8 +71,8 @@ pub fn ensure_console() {
 pub fn ensure_console() {}
 
 fn find_data_dir() -> Option<PathBuf> {
-    let settings = crate::services::settings::storage::SettingsStorage::load()
-        .unwrap_or_else(|e| {
+    let settings =
+        crate::services::settings::storage::SettingsStorage::load().unwrap_or_else(|e| {
             eprintln!("警告: 读取设置失败，将使用默认设置: {}", e);
             crate::services::AppSettings::default()
         });

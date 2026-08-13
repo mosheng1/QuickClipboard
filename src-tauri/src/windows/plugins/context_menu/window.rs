@@ -148,7 +148,6 @@ impl MenuItem {
         self.preview_image = Some(preview_image.into());
         self
     }
-
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -348,31 +347,31 @@ impl MonitorContext {
     }
 
     fn from_physical_point(app: &AppHandle, point_x: i32, point_y: i32) -> Self {
-        let (monitor_phys_x, monitor_phys_y, monitor_phys_w, monitor_phys_h, scale) =
-            app.available_monitors()
-                .ok()
-                .and_then(|monitors| {
-                    monitors.into_iter().find(|m| {
-                        let pos = m.position();
-                        let size = m.size();
-                        let right = pos.x + size.width as i32;
-                        let bottom = pos.y + size.height as i32;
-                        point_x >= pos.x && point_x < right && point_y >= pos.y && point_y < bottom
-                    })
-                })
-                .or_else(|| app.primary_monitor().ok().flatten())
-                .map(|m| {
+        let (monitor_phys_x, monitor_phys_y, monitor_phys_w, monitor_phys_h, scale) = app
+            .available_monitors()
+            .ok()
+            .and_then(|monitors| {
+                monitors.into_iter().find(|m| {
                     let pos = m.position();
                     let size = m.size();
-                    (
-                        pos.x as f64,
-                        pos.y as f64,
-                        size.width as f64,
-                        size.height as f64,
-                        m.scale_factor(),
-                    )
+                    let right = pos.x + size.width as i32;
+                    let bottom = pos.y + size.height as i32;
+                    point_x >= pos.x && point_x < right && point_y >= pos.y && point_y < bottom
                 })
-                .unwrap_or((0.0, 0.0, 1920.0, 1080.0, 1.0));
+            })
+            .or_else(|| app.primary_monitor().ok().flatten())
+            .map(|m| {
+                let pos = m.position();
+                let size = m.size();
+                (
+                    pos.x as f64,
+                    pos.y as f64,
+                    size.width as f64,
+                    size.height as f64,
+                    m.scale_factor(),
+                )
+            })
+            .unwrap_or((0.0, 0.0, 1920.0, 1080.0, 1.0));
 
         let cursor_rel_x = (point_x as f64 - monitor_phys_x) / scale;
         let cursor_rel_y = (point_y as f64 - monitor_phys_y) / scale;
@@ -435,10 +434,15 @@ async fn hide_existing_window(app: &AppHandle) -> Result<(), String> {
             let _ = w.hide();
         }
         Ok(())
-    }).await
+    })
+    .await
 }
 
-fn build_or_reuse_window(app: &AppHandle, monitor: MonitorContext, is_tray: bool) -> Result<WebviewWindow, String> {
+fn build_or_reuse_window(
+    app: &AppHandle,
+    monitor: MonitorContext,
+    is_tray: bool,
+) -> Result<WebviewWindow, String> {
     let init_phys_x = monitor.monitor_x as i32;
     let init_phys_y = monitor.monitor_y as i32;
 
@@ -496,7 +500,8 @@ async fn prepare_menu_window(
         let window = build_or_reuse_window(&app_for_task, monitor, is_tray)?;
         let _ = window.emit("reload-menu", ());
         Ok(window)
-    }).await
+    })
+    .await
 }
 
 async fn show_prepared_window(
@@ -513,18 +518,17 @@ async fn show_prepared_window(
         }
         let _ = window.set_always_on_top(true);
         Ok(())
-    }).await
+    })
+    .await
 }
 
 async fn wait_for_menu_result(session_id: u64) {
     let (tx, rx) = tokio::sync::oneshot::channel();
-    std::thread::spawn(move || {
-        loop {
-            std::thread::sleep(std::time::Duration::from_millis(50));
-            if super::has_result() || super::get_active_menu_session() != session_id {
-                let _ = tx.send(());
-                break;
-            }
+    std::thread::spawn(move || loop {
+        std::thread::sleep(std::time::Duration::from_millis(50));
+        if super::has_result() || super::get_active_menu_session() != session_id {
+            let _ = tx.send(());
+            break;
         }
     });
     let _ = rx.await;

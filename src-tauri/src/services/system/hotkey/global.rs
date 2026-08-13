@@ -1,8 +1,8 @@
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
-use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
 
@@ -144,8 +144,9 @@ pub(super) fn parse_shortcut(shortcut_str: &str) -> Result<Shortcut, String> {
     let normalized = shortcut_str
         .replace("Win+", "Super+")
         .replace("Ctrl+", "Control+");
-    
-    normalized.parse::<Shortcut>()
+
+    normalized
+        .parse::<Shortcut>()
         .map_err(|e| format!("解析快捷键失败: {}", e))
 }
 
@@ -168,25 +169,33 @@ where
     F: Fn(&AppHandle) + Send + Sync + 'static,
 {
     let app = get_app()?;
-    
+
     unregister_shortcut(id);
-    
+
     let shortcut = match parse_shortcut(shortcut_str) {
         Ok(s) => s,
         Err(_e) => {
-            update_shortcut_status(id, shortcut_str, false, Some("REGISTRATION_FAILED".to_string()));
+            update_shortcut_status(
+                id,
+                shortcut_str,
+                false,
+                Some("REGISTRATION_FAILED".to_string()),
+            );
             return Err("REGISTRATION_FAILED".to_string());
         }
     };
-    
-    match app.global_shortcut()
+
+    match app
+        .global_shortcut()
         .on_shortcut(shortcut, move |app, _shortcut, event| {
             if event.state == ShortcutState::Pressed {
                 handler(app);
             }
         }) {
         Ok(_) => {
-            REGISTERED_SHORTCUTS.lock().push((id.to_string(), shortcut_str.to_string()));
+            REGISTERED_SHORTCUTS
+                .lock()
+                .push((id.to_string(), shortcut_str.to_string()));
             update_shortcut_status(id, shortcut_str, true, None);
             println!("已注册快捷键 [{}]: {}", id, shortcut_str);
             Ok(())
@@ -208,16 +217,19 @@ pub fn unregister_shortcut(id: &str) {
         Ok(app) => app,
         Err(_) => return,
     };
-    
+
     let mut shortcuts = REGISTERED_SHORTCUTS.lock();
-    if let Some(pos) = shortcuts.iter().position(|(registered_id, _)| registered_id == id) {
+    if let Some(pos) = shortcuts
+        .iter()
+        .position(|(registered_id, _)| registered_id == id)
+    {
         let (_, shortcut_str) = shortcuts.remove(pos);
         if let Ok(shortcut) = parse_shortcut(&shortcut_str) {
             let _ = app.global_shortcut().unregister(shortcut);
             println!("已注销快捷键 [{}]: {}", id, shortcut_str);
         }
     }
-    
+
     clear_shortcut_status(id);
 }
 
@@ -250,11 +262,11 @@ pub fn register_open_settings_hotkey(shortcut_str: &str) -> Result<(), String> {
 
 pub fn register_quickpaste_hotkey(shortcut_str: &str) -> Result<(), String> {
     let app = get_app()?;
-    
+
     unregister_shortcut("quickpaste");
-    
+
     let shortcut = parse_shortcut(shortcut_str)?;
-    
+
     app.global_shortcut()
         .on_shortcut(shortcut, move |app, _shortcut, event| {
             if event.state == ShortcutState::Pressed {
@@ -265,11 +277,11 @@ pub fn register_quickpaste_hotkey(shortcut_str: &str) -> Result<(), String> {
                 if is_foreground_globally_disabled() {
                     return;
                 }
-                
+
                 let settings = crate::get_settings();
                 let is_keyboard_mode = settings.quickpaste_paste_on_modifier_release;
                 let is_visible = crate::windows::quickpaste::is_visible();
-                
+
                 if is_keyboard_mode && is_visible {
                     if let Some(window) = app.get_webview_window("quickpaste") {
                         let _ = window.emit("quickpaste-next", ());
@@ -277,7 +289,7 @@ pub fn register_quickpaste_hotkey(shortcut_str: &str) -> Result<(), String> {
                     crate::services::system::raw_input::start_quickpaste_secondary_key_hold();
                     return;
                 }
-                
+
                 if let Err(e) = crate::windows::quickpaste::show_quickpaste_window(&app) {
                     eprintln!("显示便捷粘贴窗口失败: {}", e);
                 } else if is_keyboard_mode {
@@ -291,16 +303,16 @@ pub fn register_quickpaste_hotkey(shortcut_str: &str) -> Result<(), String> {
                 if is_foreground_globally_disabled() {
                     return;
                 }
-                
+
                 let settings = crate::get_settings();
                 if settings.quickpaste_paste_on_modifier_release {
                     return;
                 }
-                
+
                 if let Some(window) = app.get_webview_window("quickpaste") {
                     let _ = window.emit("quickpaste-hide", ());
                 }
-                
+
                 let app_clone = app.clone();
                 std::thread::spawn(move || {
                     std::thread::sleep(std::time::Duration::from_millis(50));
@@ -311,9 +323,11 @@ pub fn register_quickpaste_hotkey(shortcut_str: &str) -> Result<(), String> {
             }
         })
         .map_err(|e| format!("注册便捷粘贴快捷键失败: {}", e))?;
-    
-    REGISTERED_SHORTCUTS.lock().push(("quickpaste".to_string(), shortcut_str.to_string()));
-    
+
+    REGISTERED_SHORTCUTS
+        .lock()
+        .push(("quickpaste".to_string(), shortcut_str.to_string()));
+
     println!("已注册便捷粘贴快捷键: {}", shortcut_str);
     Ok(())
 }
@@ -341,7 +355,9 @@ fn run_webdav_hotkey_action(action_name: &'static str, mode: &'static str) {
     tauri::async_runtime::spawn(async move {
         let result = match mode {
             "push" => crate::services::webdav_sync::upload().await.map(|_| ()),
-            "pull" => crate::services::webdav_sync::download(false).await.map(|_| ()),
+            "pull" => crate::services::webdav_sync::download(false)
+                .await
+                .map(|_| ()),
             _ => Ok(()),
         };
 
@@ -460,10 +476,10 @@ pub fn register_paste_plain_text_hotkey(shortcut_str: &str) -> Result<(), String
 
 // 首次按下
 fn handle_paste_plain_text_press(app: &AppHandle) -> Result<(), String> {
-    use crate::services::database::{query_clipboard_items, get_clipboard_item_by_id, QueryParams};
+    use crate::services::database::{get_clipboard_item_by_id, query_clipboard_items, QueryParams};
+    use crate::services::paste::keyboard::set_trigger_key_from_shortcut;
     use crate::services::paste::paste_handler::paste_clipboard_item_with_format;
     use crate::services::paste::PasteAction;
-    use crate::services::paste::keyboard::set_trigger_key_from_shortcut;
 
     set_trigger_key_from_shortcut(&crate::get_settings().paste_plain_text_shortcut);
 
@@ -495,23 +511,26 @@ fn handle_paste_plain_text_press(app: &AppHandle) -> Result<(), String> {
 
 pub fn register_number_shortcuts(modifier: &str) -> Result<(), String> {
     let app = get_app()?;
-    
+
     unregister_number_shortcuts();
-    
+
     {
         let mut status_map = SHORTCUT_STATUS.lock();
         status_map.remove("number_shortcuts");
     }
-    
+
     let is_f_key = modifier.ends_with("F");
     let prefix = if is_f_key {
-        modifier.strip_suffix("F").unwrap_or("").trim_end_matches('+')
+        modifier
+            .strip_suffix("F")
+            .unwrap_or("")
+            .trim_end_matches('+')
     } else {
         modifier
     };
-    
+
     let mut failed_shortcuts: Vec<String> = Vec::new();
-    
+
     for num in 1..=9 {
         let id = format!("number_{}", num);
         let shortcut_str = if is_f_key {
@@ -523,7 +542,7 @@ pub fn register_number_shortcuts(modifier: &str) -> Result<(), String> {
         } else {
             format!("{}+{}", modifier, num)
         };
-        
+
         if let Ok(shortcut) = parse_shortcut(&shortcut_str) {
             let key_id = format!("number_{}", num);
             let index = (num - 1) as usize;
@@ -555,8 +574,7 @@ pub fn register_number_shortcuts(modifier: &str) -> Result<(), String> {
                             deactivate_key(&key_id);
                         }
                     }
-                })
-            {
+                }) {
                 Ok(_) => {
                     REGISTERED_SHORTCUTS.lock().push((id, shortcut_str.clone()));
                     println!("已注册数字快捷键: {}", shortcut_str);
@@ -571,17 +589,20 @@ pub fn register_number_shortcuts(modifier: &str) -> Result<(), String> {
             }
         }
     }
-    
+
     if !failed_shortcuts.is_empty() {
         let mut status_map = SHORTCUT_STATUS.lock();
-        status_map.insert("number_shortcuts".to_string(), ShortcutStatus {
-            id: "number_shortcuts".to_string(),
-            shortcut: failed_shortcuts.join(", "),
-            success: false,
-            error: Some("REGISTRATION_FAILED".to_string()),
-        });
+        status_map.insert(
+            "number_shortcuts".to_string(),
+            ShortcutStatus {
+                id: "number_shortcuts".to_string(),
+                shortcut: failed_shortcuts.join(", "),
+                success: false,
+                error: Some("REGISTRATION_FAILED".to_string()),
+            },
+        );
     }
-    
+
     Ok(())
 }
 
@@ -592,7 +613,7 @@ pub fn unregister_number_shortcuts() {
         .filter(|(id, _)| id.starts_with("number_"))
         .cloned()
         .collect();
-    
+
     for (id, shortcut_str) in number_shortcuts {
         if let Ok(shortcut) = parse_shortcut(&shortcut_str) {
             if let Ok(app) = get_app() {
@@ -606,9 +627,9 @@ pub fn unregister_number_shortcuts() {
 
 // 首次按下
 fn handle_number_shortcut_press(index: usize) -> Result<(), String> {
-    use crate::services::database::{query_clipboard_items, get_clipboard_item_by_id, QueryParams};
-    use crate::services::paste::paste_handler::paste_clipboard_item_with_update;
+    use crate::services::database::{get_clipboard_item_by_id, query_clipboard_items, QueryParams};
     use crate::services::paste::keyboard;
+    use crate::services::paste::paste_handler::paste_clipboard_item_with_update;
 
     // 设置触发键虚拟键码，确保 simulate_paste 能释放正确的按键
     let settings = crate::get_settings();
@@ -636,8 +657,8 @@ fn handle_number_shortcut_press(index: usize) -> Result<(), String> {
         )
     })?;
 
-    let full_item = get_clipboard_item_by_id(item.id)?
-        .ok_or_else(|| format!("剪贴板项 {} 不存在", item.id))?;
+    let full_item =
+        get_clipboard_item_by_id(item.id)?.ok_or_else(|| format!("剪贴板项 {} 不存在", item.id))?;
 
     paste_clipboard_item_with_update(&full_item)
 }
@@ -675,7 +696,7 @@ pub fn disable_hotkeys() {
     if !HOTKEYS_ENABLED.load(Ordering::Relaxed) {
         return;
     }
-    
+
     unregister_all();
     HOTKEYS_ENABLED.store(false, Ordering::Relaxed);
     println!("已禁用全局热键");
@@ -719,13 +740,13 @@ fn clear_shortcut_status(id: &str) {
 
 pub fn reload_from_settings() -> Result<(), String> {
     let settings = crate::get_settings();
-    
+
     unregister_all();
     {
         let mut status_map = SHORTCUT_STATUS.lock();
         status_map.clear();
     }
-    
+
     if settings.hotkeys_enabled {
         if is_foreground_globally_disabled() {
             return Ok(());
@@ -742,7 +763,7 @@ pub fn reload_from_settings() -> Result<(), String> {
                 eprintln!("注册打开设置快捷键失败: {}", e);
             }
         }
-        
+
         if settings.quickpaste_enabled && !settings.quickpaste_shortcut.is_empty() {
             if let Err(e) = register_quickpaste_hotkey(&settings.quickpaste_shortcut) {
                 eprintln!("注册预览窗口快捷键失败: {}", e);
@@ -750,7 +771,9 @@ pub fn reload_from_settings() -> Result<(), String> {
         }
 
         if !settings.transfer_shelf_create_shortcut.is_empty() {
-            if let Err(e) = register_transfer_shelf_create_hotkey(&settings.transfer_shelf_create_shortcut) {
+            if let Err(e) =
+                register_transfer_shelf_create_hotkey(&settings.transfer_shelf_create_shortcut)
+            {
                 eprintln!("注册文件盒创建快捷键失败: {}", e);
             }
         }
@@ -766,42 +789,43 @@ pub fn reload_from_settings() -> Result<(), String> {
                 eprintln!("注册 WebDAV 拉取快捷键失败: {}", e);
             }
         }
-        
-        
-        
-        
-        
+
         if !settings.toggle_clipboard_monitor_shortcut.is_empty() {
-            if let Err(e) = register_toggle_clipboard_monitor_hotkey(&settings.toggle_clipboard_monitor_shortcut) {
+            if let Err(e) = register_toggle_clipboard_monitor_hotkey(
+                &settings.toggle_clipboard_monitor_shortcut,
+            ) {
                 eprintln!("注册切换剪贴板监听快捷键失败: {}", e);
             }
         }
-        
+
         if !settings.toggle_paste_with_format_shortcut.is_empty() {
-            if let Err(e) = register_toggle_paste_with_format_hotkey(&settings.toggle_paste_with_format_shortcut) {
+            if let Err(e) = register_toggle_paste_with_format_hotkey(
+                &settings.toggle_paste_with_format_shortcut,
+            ) {
                 eprintln!("注册切换格式粘贴快捷键失败: {}", e);
             }
         }
 
         if !settings.toggle_low_memory_mode_shortcut.is_empty() {
-            if let Err(e) = register_toggle_low_memory_mode_hotkey(&settings.toggle_low_memory_mode_shortcut) {
+            if let Err(e) =
+                register_toggle_low_memory_mode_hotkey(&settings.toggle_low_memory_mode_shortcut)
+            {
                 eprintln!("注册切换低占用模式快捷键失败: {}", e);
             }
         }
-        
+
         if !settings.paste_plain_text_shortcut.is_empty() {
             if let Err(e) = register_paste_plain_text_hotkey(&settings.paste_plain_text_shortcut) {
                 eprintln!("注册纯文本粘贴快捷键失败: {}", e);
             }
         }
-        
+
         if settings.number_shortcuts && !settings.number_shortcuts_modifier.is_empty() {
             if let Err(e) = register_number_shortcuts(&settings.number_shortcuts_modifier) {
                 eprintln!("注册数字快捷键失败: {}", e);
             }
         }
     }
-    
+
     Ok(())
 }
-
