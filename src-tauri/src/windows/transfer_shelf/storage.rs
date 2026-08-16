@@ -76,4 +76,3 @@ pub fn upsert_geometry(id: &str, geometry: ShelfGeometryPersisted) -> Result<(),
     state.geometries.insert(id.to_string(), geometry);
     save(&state)
 }
-

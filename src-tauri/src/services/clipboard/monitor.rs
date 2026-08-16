@@ -4,7 +4,7 @@ use super::storage::store_clipboard_item;
 use crate::commands::window::{emit_clipboard_updated_event, ClipboardUpdatedEventPayload};
 use clipboard_rs::{
     ClipboardContent as RsClipboardContent, ClipboardHandler, ClipboardWatcher,
-    ClipboardWatcherContext,
+    ClipboardWatcherContext, WatcherShutdown,
 };
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
@@ -19,12 +19,14 @@ static GENERATION: AtomicU64 = AtomicU64::new(0);
 // 监听器状态
 struct MonitorState {
     watcher_handle: Option<thread::JoinHandle<()>>,
+    watcher_shutdown: Option<WatcherShutdown>,
     current_generation: u64,
 }
 
 static MONITOR_STATE: Lazy<Arc<Mutex<MonitorState>>> = Lazy::new(|| {
     Arc::new(Mutex::new(MonitorState {
         watcher_handle: None,
+        watcher_shutdown: None,
         current_generation: 0,
     }))
 });
@@ -170,14 +172,24 @@ pub fn start_clipboard_monitor() -> Result<(), String> {
 
     let new_generation = GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
 
+    let mut watcher = match ClipboardWatcherContext::new() {
+        Ok(watcher) => watcher,
+        Err(error) => {
+            IS_RUNNING.store(false, Ordering::SeqCst);
+            #[cfg(target_os = "windows")]
+            crate::services::system::stop_clipboard_source_monitor();
+            return Err(format!("创建剪贴板监听器失败: {}", error));
+        }
+    };
+    let watcher_shutdown = watcher.get_shutdown_channel();
+    watcher.add_handler(ClipboardMonitorManager::new(new_generation)?);
+
     let mut state = MONITOR_STATE.lock();
     state.current_generation = new_generation;
-    state.watcher_handle = None;
+    state.watcher_shutdown = Some(watcher_shutdown);
 
     let handle = thread::spawn(move || {
-        if let Err(e) = run_clipboard_monitor(new_generation) {
-            eprintln!("剪贴板监听错误: {}", e);
-        }
+        watcher.start_watch();
         IS_RUNNING.store(false, Ordering::SeqCst);
     });
 
@@ -186,27 +198,27 @@ pub fn start_clipboard_monitor() -> Result<(), String> {
 }
 
 pub fn stop_clipboard_monitor() -> Result<(), String> {
-    if IS_RUNNING.swap(false, Ordering::SeqCst) {
+    let was_running = IS_RUNNING.swap(false, Ordering::SeqCst);
+    if was_running {
         // 停止剪贴板来源监控
         #[cfg(target_os = "windows")]
         crate::services::system::stop_clipboard_source_monitor();
+    }
 
+    let (watcher_shutdown, watcher_handle) = {
         let mut state = MONITOR_STATE.lock();
-        state.watcher_handle = None;
+        (state.watcher_shutdown.take(), state.watcher_handle.take())
+    };
+
+    drop(watcher_shutdown);
+    if let Some(handle) = watcher_handle {
+        let _ = handle.join();
     }
     Ok(())
 }
 
 pub fn is_monitor_running() -> bool {
     IS_RUNNING.load(Ordering::Relaxed)
-}
-
-fn run_clipboard_monitor(generation: u64) -> Result<(), String> {
-    let manager = ClipboardMonitorManager::new(generation)?;
-    let mut watcher =
-        ClipboardWatcherContext::new().map_err(|e| format!("创建剪贴板监听器失败: {}", e))?;
-    let _ = watcher.add_handler(manager).start_watch();
-    Ok(())
 }
 
 fn spawn_capture_worker_loop() {
@@ -295,9 +307,10 @@ fn process_clipboard_change_once() {
                     match crate::services::database::get_clipboard_item_by_id(id) {
                         Ok(Some(mut item)) => {
                             crate::commands::clipboard::hydrate_clipboard_item_for_ui(&mut item);
-                            let insert_index = crate::services::database::get_clipboard_item_position(id)
-                                .ok()
-                                .flatten();
+                            let insert_index =
+                                crate::services::database::get_clipboard_item_position(id)
+                                    .ok()
+                                    .flatten();
                             let total_count = crate::services::database::get_clipboard_count().ok();
                             let _ = emit_clipboard_updated(ClipboardUpdatedEventPayload {
                                 kind: "created".to_string(),
@@ -315,7 +328,6 @@ fn process_clipboard_change_once() {
                             });
                         }
                     }
-
                 }
                 Err(e) if e.contains("重复内容") || e.contains("已禁止保存图片") => {}
                 Err(e) => eprintln!("存储剪贴板内容失败: {}", e),

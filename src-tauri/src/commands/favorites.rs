@@ -1,15 +1,10 @@
 use crate::services::database::{
-    query_favorites, get_favorites_count,move_favorite_item,
-    add_clipboard_to_favorites as db_add_clipboard_to_favorites,
-    move_favorite_to_group as db_move_favorite_to_group,
-    delete_favorite as db_delete_favorite,
-    delete_favorites as db_delete_favorites,
-    get_clipboard_data_items,
-    get_favorite_by_id,
-    add_favorite as db_add_favorite,
-    update_favorite as db_update_favorite,
-    increment_favorite_paste_counts as db_increment_favorite_paste_counts,
-    FavoritesQueryParams, PaginatedResult, FavoriteItem
+    add_clipboard_to_favorites as db_add_clipboard_to_favorites, add_favorite as db_add_favorite,
+    delete_favorite as db_delete_favorite, delete_favorites as db_delete_favorites,
+    get_clipboard_data_items, get_favorite_by_id, get_favorites_count,
+    increment_favorite_paste_counts as db_increment_favorite_paste_counts, move_favorite_item,
+    move_favorite_to_group as db_move_favorite_to_group, query_favorites,
+    update_favorite as db_update_favorite, FavoriteItem, FavoritesQueryParams, PaginatedResult,
 };
 use crate::services::paste::FilesData;
 use std::path::Path;
@@ -24,8 +19,10 @@ fn fill_file_exists_for_favorites(items: &mut [FavoriteItem]) {
 }
 
 fn check_and_fill_file_exists(item: &mut FavoriteItem) {
-    if !item.content.starts_with("files:") { return; }
-    
+    if !item.content.starts_with("files:") {
+        return;
+    }
+
     if let Ok(mut data) = serde_json::from_str::<FilesData>(&item.content[6..]) {
         for file in &mut data.files {
             let actual_path = resolve_stored_path(&file.path);
@@ -82,10 +79,7 @@ pub fn get_favorites_total_count(group_name: Option<String>) -> Result<i64, Stri
 
 // 移动收藏项（拖拽排序）
 #[tauri::command]
-pub fn move_favorite_item_cmd(
-    from_id: String,
-    to_id: String,
-) -> Result<(), String> {
+pub fn move_favorite_item_cmd(from_id: String, to_id: String) -> Result<(), String> {
     let result = move_favorite_item(from_id, to_id);
     if result.is_ok() {
         notify_lan_change("favorites");
@@ -95,7 +89,10 @@ pub fn move_favorite_item_cmd(
 
 // 从剪贴板历史添加到收藏
 #[tauri::command]
-pub fn add_clipboard_to_favorites(id: i64, group_name: Option<String>) -> Result<FavoriteItem, String> {
+pub fn add_clipboard_to_favorites(
+    id: i64,
+    group_name: Option<String>,
+) -> Result<FavoriteItem, String> {
     let result = db_add_clipboard_to_favorites(id, group_name);
     if result.is_ok() {
         notify_lan_change("favorites");
@@ -134,7 +131,10 @@ pub fn delete_favorite_items(ids: Vec<String>) -> Result<(), String> {
 
 // 根据 ID 获取单个收藏项
 #[tauri::command]
-pub fn get_favorite_item_by_id_cmd(id: String, max_length: Option<usize>) -> Result<FavoriteItem, String> {
+pub fn get_favorite_item_by_id_cmd(
+    id: String,
+    max_length: Option<usize>,
+) -> Result<FavoriteItem, String> {
     use crate::services::database::get_favorite_by_id_with_limit;
     let mut item = get_favorite_by_id_with_limit(&id, max_length)?
         .ok_or_else(|| format!("收藏项不存在: {}", id))?;
@@ -146,7 +146,11 @@ pub fn get_favorite_item_by_id_cmd(id: String, max_length: Option<usize>) -> Res
 
 // 添加收藏项
 #[tauri::command]
-pub fn add_quick_text(title: String, content: String, group_name: Option<String>) -> Result<FavoriteItem, String> {
+pub fn add_quick_text(
+    title: String,
+    content: String,
+    group_name: Option<String>,
+) -> Result<FavoriteItem, String> {
     let result = db_add_favorite(title, content, group_name);
     if result.is_ok() {
         notify_lan_change("favorites");
@@ -174,17 +178,22 @@ pub fn update_quick_text(
 #[tauri::command]
 pub fn copy_favorite_item(id: String) -> Result<(), String> {
     use crate::services::paste::paste_handler::copy_favorite_item as do_copy;
-    
+
     let item = favorite_to_clipboard_item(&id)?;
-    
+
     do_copy(&item, &id)
 }
 
 #[tauri::command]
-pub fn get_favorite_item_paste_options_cmd(id: String) -> Result<Vec<crate::services::database::PasteOption>, String> {
+pub fn get_favorite_item_paste_options_cmd(
+    id: String,
+) -> Result<Vec<crate::services::database::PasteOption>, String> {
     let item = favorite_to_clipboard_item(&id)?;
     let raw_formats = get_clipboard_data_items("favorite", &id)?;
-    Ok(crate::services::paste::options::build_paste_options(&item, &raw_formats))
+    Ok(crate::services::paste::options::build_paste_options(
+        &item,
+        &raw_formats,
+    ))
 }
 
 #[tauri::command]
@@ -206,7 +215,10 @@ pub async fn merge_copy_favorite_items(ids: Vec<String>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn merge_paste_favorite_items(ids: Vec<String>, app: tauri::AppHandle) -> Result<(), String> {
+pub async fn merge_paste_favorite_items(
+    ids: Vec<String>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
     let ids_for_emit = ids.clone();
     tokio::task::spawn_blocking(move || {
         if ids.is_empty() {
@@ -234,9 +246,10 @@ pub async fn merge_paste_favorite_items(ids: Vec<String>, app: tauri::AppHandle)
     Ok(())
 }
 
-fn favorite_to_clipboard_item(id: &str) -> Result<crate::services::database::ClipboardItem, String> {
-    let favorite = get_favorite_by_id(id)?
-        .ok_or_else(|| format!("收藏项不存在: {}", id))?;
+fn favorite_to_clipboard_item(
+    id: &str,
+) -> Result<crate::services::database::ClipboardItem, String> {
+    let favorite = get_favorite_by_id(id)?.ok_or_else(|| format!("收藏项不存在: {}", id))?;
 
     Ok(crate::services::database::ClipboardItem {
         id: 0,

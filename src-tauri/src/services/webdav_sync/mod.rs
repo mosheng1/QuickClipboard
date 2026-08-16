@@ -54,7 +54,8 @@ pub async fn upload_parts(
         upload_favorites,
         upload_groups,
         upload_tombstones,
-    ).await
+    )
+    .await
 }
 
 pub async fn upload_cloud_files_with_progress(
@@ -69,7 +70,9 @@ pub async fn list_cloud_files() -> Result<Vec<cloud_files::CloudFileListItem>, S
     cloud_files::list_files(&client).await
 }
 
-pub async fn download_cloud_file(file_id: &str) -> Result<cloud_files::CloudFileDownloadResult, String> {
+pub async fn download_cloud_file(
+    file_id: &str,
+) -> Result<cloud_files::CloudFileDownloadResult, String> {
     let client = build_client().await?;
     cloud_files::download_file(&client, file_id).await
 }
@@ -111,11 +114,8 @@ async fn build_client() -> Result<WebdavClient, String> {
     let password = if settings.webdav_username.trim().is_empty() {
         String::new()
     } else {
-        crate::services::secure_credentials::get_webdav_password(
-            &webdav_url,
-            &webdav_username,
-        )?
-        .ok_or_else(|| "请先在设置中保存 WebDAV 密码".to_string())?
+        crate::services::secure_credentials::get_webdav_password(&webdav_url, &webdav_username)?
+            .ok_or_else(|| "请先在设置中保存 WebDAV 密码".to_string())?
     };
     let encryption_password = crate::services::secure_credentials::get_webdav_encryption_password(
         &webdav_url,

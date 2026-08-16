@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::fs;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::Manager;
 
 mod commands;
@@ -35,7 +36,9 @@ pub use windows::quickpaste;
 pub use windows::settings_window::open_settings_window;
 pub use windows::tray::setup_tray;
 
-const STARTUP_UPDATE_CHECK_DELAY_MS: u64 = 800;
+const STARTUP_HOTKEY_RETRY_DELAY_MS: u64 = 1_500;
+static SHUTDOWN_REQUESTED: AtomicBool = AtomicBool::new(false);
+static MAIN_WINDOW_RECOVERY_PENDING: AtomicBool = AtomicBool::new(false);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -125,13 +128,24 @@ pub fn run() {
 
     startup_diagnostics::set_startup_stage("构建 Tauri 应用");
     let builder = tauri::Builder::default()
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             if services::low_memory::is_low_memory_mode() {
                 let _ = services::low_memory::toggle_panel();
                 return;
             }
-            if let Some(window) = app.get_webview_window("main") {
-                show_main_window(&window);
+            let is_background_launch = argv.iter().any(|argument| {
+                matches!(
+                    argument.as_str(),
+                    services::system::startup::AUTO_START_ARG
+                        | services::system::startup::ADMIN_RELAUNCH_ARG
+                )
+            });
+            if is_background_launch {
+                return;
+            }
+            match services::low_memory::ensure_main_window(app) {
+                Ok(window) => show_main_window(&window),
+                Err(error) => eprintln!("单实例请求显示主窗口失败: {}", error),
             }
         }))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -489,6 +503,19 @@ pub fn run() {
         tauri::RunEvent::Ready => {
             startup_diagnostics::mark_ready();
             windows::transfer_shelf::schedule_startup_restore_persisted_shelves(app.clone());
+            tauri::async_runtime::spawn(async {
+                tokio::time::sleep(std::time::Duration::from_millis(
+                    STARTUP_HOTKEY_RETRY_DELAY_MS,
+                ))
+                .await;
+                if !SHUTDOWN_REQUESTED.load(Ordering::SeqCst)
+                    && crate::get_settings().hotkeys_enabled
+                {
+                    if let Err(error) = crate::hotkey::reload_from_settings() {
+                        eprintln!("启动后重试注册快捷键失败: {}", error);
+                    }
+                }
+            });
         }
         tauri::RunEvent::ExitRequested { api, .. } => {
             if services::low_memory::is_low_memory_mode()
@@ -496,6 +523,7 @@ pub fn run() {
             {
                 api.prevent_exit();
             } else {
+                SHUTDOWN_REQUESTED.store(true, Ordering::SeqCst);
                 services::webdav_sync::crypto::clear_cached_keys();
             }
         }
@@ -504,9 +532,22 @@ pub fn run() {
             event: tauri::WindowEvent::Destroyed,
             ..
         } => {
-            if label == "main" && !services::low_memory::is_low_memory_mode() {
+            if label == "main"
+                && !services::low_memory::is_low_memory_mode()
+                && !SHUTDOWN_REQUESTED.load(Ordering::SeqCst)
+                && !MAIN_WINDOW_RECOVERY_PENDING.swap(true, Ordering::SeqCst)
+            {
                 services::webdav_sync::crypto::clear_cached_keys();
-                app.exit(0);
+                let app_handle = app.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                    if !SHUTDOWN_REQUESTED.load(Ordering::SeqCst) {
+                        if let Err(error) = services::low_memory::ensure_main_window(&app_handle) {
+                            eprintln!("主窗口销毁后重建失败: {}", error);
+                        }
+                    }
+                    MAIN_WINDOW_RECOVERY_PENDING.store(false, Ordering::SeqCst);
+                });
             }
         }
         _ => {}

@@ -142,7 +142,10 @@ fn normalize_webdav_root_path(root_path: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_webdav_root_path, normalize_webdav_url, webdav_account_key, webdav_encryption_account_key};
+    use super::{
+        normalize_webdav_root_path, normalize_webdav_url, webdav_account_key,
+        webdav_encryption_account_key,
+    };
 
     #[test]
     fn trims_trailing_slashes_for_webdav_credential_key() {
@@ -179,6 +182,9 @@ mod tests {
     #[test]
     fn uses_default_webdav_root_for_encryption_key() {
         assert_eq!(normalize_webdav_root_path(""), "quickclipboard");
-        assert_eq!(normalize_webdav_root_path("\\quickclipboard\\"), "quickclipboard");
+        assert_eq!(
+            normalize_webdav_root_path("\\quickclipboard\\"),
+            "quickclipboard"
+        );
     }
 }

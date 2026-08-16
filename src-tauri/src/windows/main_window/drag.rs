@@ -24,9 +24,10 @@ mod platform {
     pub static BOUND_RIGHT: AtomicI32 = AtomicI32::new(0);
     pub static BOUND_BOTTOM: AtomicI32 = AtomicI32::new(0);
     pub static ORIGINAL_WNDPROC_PTR: AtomicIsize = AtomicIsize::new(0);
-    pub static MONITORS: once_cell::sync::Lazy<parking_lot::Mutex<Vec<(i32, i32, i32, i32, bool, bool, bool, bool)>>> = 
-        once_cell::sync::Lazy::new(|| parking_lot::Mutex::new(Vec::new()));
-    pub static WINDOW_SIZE: once_cell::sync::Lazy<parking_lot::Mutex<(i32, i32)>> = 
+    pub static MONITORS: once_cell::sync::Lazy<
+        parking_lot::Mutex<Vec<(i32, i32, i32, i32, bool, bool, bool, bool)>>,
+    > = once_cell::sync::Lazy::new(|| parking_lot::Mutex::new(Vec::new()));
+    pub static WINDOW_SIZE: once_cell::sync::Lazy<parking_lot::Mutex<(i32, i32)>> =
         once_cell::sync::Lazy::new(|| parking_lot::Mutex::new((0, 0)));
 
     pub unsafe fn install_wndproc(hwnd: HWND) {
@@ -47,20 +48,24 @@ mod platform {
         wparam: WPARAM,
         lparam: LPARAM,
     ) -> LRESULT {
-        if msg == WM_WINDOWPOSCHANGING && IS_DRAGGING_ACTIVE.load(Ordering::Relaxed) && lparam.0 != 0 {
+        if msg == WM_WINDOWPOSCHANGING
+            && IS_DRAGGING_ACTIVE.load(Ordering::Relaxed)
+            && lparam.0 != 0
+        {
             let wp = &mut *(lparam.0 as *mut WINDOWPOS);
-            
+
             if let (Some(monitors), Some(size)) = (MONITORS.try_lock(), WINDOW_SIZE.try_lock()) {
                 let (w, h) = *size;
                 let cx = wp.x + w / 2;
                 let cy = wp.y + h / 2;
-                
-                let current_monitor = monitors.iter()
-                    .find(|(mx, my, mw, mh, _, _, _, _)| {
-                        cx >= *mx && cx < mx + mw && cy >= *my && cy < my + mh
-                    });
-                
-                if let Some(&(mx, my, mw, mh, left_edge, right_edge, top_edge, bottom_edge)) = current_monitor {
+
+                let current_monitor = monitors.iter().find(|(mx, my, mw, mh, _, _, _, _)| {
+                    cx >= *mx && cx < mx + mw && cy >= *my && cy < my + mh
+                });
+
+                if let Some(&(mx, my, mw, mh, left_edge, right_edge, top_edge, bottom_edge)) =
+                    current_monitor
+                {
                     if left_edge {
                         wp.x = wp.x.max(mx);
                     }
@@ -115,8 +120,8 @@ pub fn start_drag(window: &WebviewWindow, _: i32, _: i32) -> Result<(), String> 
     *platform::WINDOW_SIZE.lock() = (w, h);
 
     let app = window.app_handle();
-    let monitors_with_edges = crate::utils::screen::ScreenUtils::get_all_monitors_with_edges(app)
-        .unwrap_or_default();
+    let monitors_with_edges =
+        crate::utils::screen::ScreenUtils::get_all_monitors_with_edges(app).unwrap_or_default();
     *platform::MONITORS.lock() = monitors_with_edges;
 
     let (vx, vy, vw, vh) = crate::utils::screen::ScreenUtils::get_virtual_screen_size_by_app(app)
@@ -134,8 +139,7 @@ pub fn start_drag(window: &WebviewWindow, _: i32, _: i32) -> Result<(), String> 
             if previous_hwnd != 0 && previous_hwnd != hwnd_value {
                 eprintln!(
                     "检测到残留拖拽窗口过程句柄，旧句柄: {}, 新句柄: {}",
-                    previous_hwnd,
-                    hwnd_value
+                    previous_hwnd, hwnd_value
                 );
             }
             platform::install_wndproc(HWND(hwnd.0 as *mut _));
@@ -167,14 +171,15 @@ pub fn stop_drag(window: &WebviewWindow) -> Result<(), String> {
     super::state::set_dragging(false);
 
     if let Ok(hwnd) = window.hwnd() {
-        unsafe { platform::restore_wndproc(HWND(hwnd.0 as *mut _)); }
+        unsafe {
+            platform::restore_wndproc(HWND(hwnd.0 as *mut _));
+        }
         let hwnd_value = hwnd.0 as isize;
         let installed_hwnd = INSTALLED_WNDPROC_HWND.swap(0, Ordering::SeqCst);
         if installed_hwnd != 0 && installed_hwnd != hwnd_value {
             eprintln!(
                 "拖拽结束时窗口句柄不匹配，已安装句柄: {}, 当前句柄: {}",
-                installed_hwnd,
-                hwnd_value
+                installed_hwnd, hwnd_value
             );
         }
     } else {
@@ -244,7 +249,7 @@ fn delayed_check_snap(window: &WebviewWindow) {
 #[cfg(target_os = "windows")]
 fn wait_for_mouse_release(window: WebviewWindow) {
     use windows::Win32::UI::Input::KeyboardAndMouse::{GetAsyncKeyState, VK_LBUTTON};
-    
+
     std::thread::sleep(Duration::from_millis(100));
     loop {
         unsafe {
@@ -257,7 +262,7 @@ fn wait_for_mouse_release(window: WebviewWindow) {
         }
         std::thread::sleep(Duration::from_millis(10));
     }
-    
+
     let app = window.app_handle().clone();
     let _ = app.run_on_main_thread(move || {
         let _ = stop_drag(&window);

@@ -11,7 +11,8 @@ const LEGACY_AUTO_SYNC_SETTINGS_KEY: &str = "sync_transfer_lan_auto_sync_setting
 const FAILED_PEER_BACKOFF_STEPS_MS: [i64; 4] = [1_000, 3_000, 10_000, 30_000];
 
 static LAST_REPORT: Lazy<Mutex<Option<LanAutoSyncReportEvent>>> = Lazy::new(|| Mutex::new(None));
-static PEER_SYNC_STATES: Lazy<Mutex<HashMap<String, PeerSyncState>>> = Lazy::new(|| Mutex::new(HashMap::new()));
+static PEER_SYNC_STATES: Lazy<Mutex<HashMap<String, PeerSyncState>>> =
+    Lazy::new(|| Mutex::new(HashMap::new()));
 
 #[derive(Debug, Clone, Default)]
 struct PeerSyncState {
@@ -62,7 +63,9 @@ struct LegacyLanAutoSyncSettings {
 }
 
 pub fn settings() -> LanAutoSyncSettings {
-    if let Some(settings) = crate::services::store::get::<LanAutoSyncSettings>(EVENT_SYNC_SETTINGS_KEY) {
+    if let Some(settings) =
+        crate::services::store::get::<LanAutoSyncSettings>(EVENT_SYNC_SETTINGS_KEY)
+    {
         return settings;
     }
     crate::services::store::get::<LegacyLanAutoSyncSettings>(LEGACY_AUTO_SYNC_SETTINGS_KEY)
@@ -191,9 +194,15 @@ fn schedule_peer_sync(app: AppHandle, reason: &'static str, peer: super::peer_st
                         if !backoff_active {
                             state.pending = false;
                         } else if state.pending && !state.retry_scheduled {
-                            let delay_ms = state.retry_after_ms.unwrap_or_else(current_time_ms) - current_time_ms();
+                            let delay_ms = state.retry_after_ms.unwrap_or_else(current_time_ms)
+                                - current_time_ms();
                             state.retry_scheduled = true;
-                            schedule_retry_after(app.clone(), reason, peer.clone(), delay_ms.max(0));
+                            schedule_retry_after(
+                                app.clone(),
+                                reason,
+                                peer.clone(),
+                                delay_ms.max(0),
+                            );
                         }
                         false
                     }

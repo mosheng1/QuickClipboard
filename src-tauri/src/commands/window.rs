@@ -1,6 +1,6 @@
 use crate::services::database::{ClipboardItem, FavoriteItem};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, WebviewWindow, Manager};
+use tauri::{AppHandle, Manager, WebviewWindow};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -42,12 +42,15 @@ pub fn emit_clipboard_updated_event(
         return Ok(());
     }
 
-    app.emit("clipboard-updated", payload.unwrap_or(ClipboardUpdatedEventPayload {
-        kind: "unknown".to_string(),
-        item: None,
-        insert_index: None,
-        total_count: None,
-    }))
+    app.emit(
+        "clipboard-updated",
+        payload.unwrap_or(ClipboardUpdatedEventPayload {
+            kind: "unknown".to_string(),
+            item: None,
+            insert_index: None,
+            total_count: None,
+        }),
+    )
     .map_err(|e| format!("发射剪贴板更新事件失败: {}", e))
 }
 
@@ -61,11 +64,14 @@ pub fn emit_quick_texts_updated_event(
         return Ok(());
     }
 
-    app.emit("quick-texts-updated", payload.unwrap_or(FavoriteUpdatedEventPayload {
-        kind: "unknown".to_string(),
-        item: None,
-        insert_index: None,
-    }))
+    app.emit(
+        "quick-texts-updated",
+        payload.unwrap_or(FavoriteUpdatedEventPayload {
+            kind: "unknown".to_string(),
+            item: None,
+            insert_index: None,
+        }),
+    )
     .map_err(|e| format!("发射收藏列表更新事件失败: {}", e))
 }
 
@@ -89,7 +95,11 @@ pub fn emit_main_window_refresh_needed_event(app: &AppHandle) -> Result<(), Stri
 }
 
 #[tauri::command]
-pub fn start_custom_drag(window: WebviewWindow, mouse_screen_x: i32, mouse_screen_y: i32) -> Result<(), String> {
+pub fn start_custom_drag(
+    window: WebviewWindow,
+    mouse_screen_x: i32,
+    mouse_screen_y: i32,
+) -> Result<(), String> {
     crate::start_drag(&window, mouse_screen_x, mouse_screen_y)
 }
 
@@ -139,7 +149,8 @@ pub fn center_main_window(window: WebviewWindow) -> Result<(), String> {
 #[tauri::command]
 pub fn get_data_directory() -> Result<String, String> {
     let data_dir = crate::services::get_data_directory()?;
-    data_dir.to_str()
+    data_dir
+        .to_str()
         .ok_or("数据目录路径转换失败".to_string())
         .map(|s| s.to_string())
 }
@@ -169,9 +180,10 @@ pub fn hide_main_window_if_auto_shown(window: WebviewWindow) -> Result<(), Strin
 pub fn set_window_pinned(window: WebviewWindow, pinned: bool) -> Result<(), String> {
     crate::windows::main_window::set_pinned(pinned);
 
-    window.set_always_on_top(pinned)
+    window
+        .set_always_on_top(pinned)
         .map_err(|e| format!("设置窗口置顶失败: {}", e))?;
-    
+
     Ok(())
 }
 
@@ -199,7 +211,9 @@ pub async fn open_text_editor_window(
     item_index: Option<i32>,
     group_name: Option<String>,
 ) -> Result<(), String> {
-    crate::windows::text_editor_window::open_text_editor_window(&app, &item_id, &item_type, item_index, group_name)
+    crate::windows::text_editor_window::open_text_editor_window(
+        &app, &item_id, &item_type, item_index, group_name,
+    )
 }
 
 // 剪贴板更新事件

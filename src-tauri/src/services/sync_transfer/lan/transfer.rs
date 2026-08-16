@@ -68,7 +68,10 @@ impl FileTransferProgressReporter {
     }
 }
 
-pub async fn send_file_to_peer(device_id: &str, file_path: &str) -> Result<FileTransferResult, String> {
+pub async fn send_file_to_peer(
+    device_id: &str,
+    file_path: &str,
+) -> Result<FileTransferResult, String> {
     send_file_to_peer_with_progress(device_id, file_path, None, None).await
 }
 

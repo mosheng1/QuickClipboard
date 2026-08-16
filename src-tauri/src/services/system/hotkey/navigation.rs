@@ -10,6 +10,7 @@ use super::global::{get_app, parse_shortcut};
 
 static NAVIGATION_SHORTCUTS: Lazy<Mutex<Vec<NavigationShortcutRegistration>>> =
     Lazy::new(|| Mutex::new(Vec::new()));
+static NAVIGATION_HOTKEYS_LIFECYCLE_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 static NAVIGATION_HOTKEYS_DESIRED: AtomicBool = AtomicBool::new(false);
 static NAVIGATION_HOTKEYS_REGISTERED: AtomicBool = AtomicBool::new(false);
 static NAVIGATION_REPEAT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
@@ -46,39 +47,51 @@ pub fn disable_navigation_hotkeys() {
 }
 
 pub fn sync_navigation_hotkeys_for_foreground() {
+    let _lifecycle_guard = NAVIGATION_HOTKEYS_LIFECYCLE_LOCK.lock();
+    sync_navigation_hotkeys_for_foreground_locked();
+}
+
+fn sync_navigation_hotkeys_for_foreground_locked() {
     if !NAVIGATION_HOTKEYS_DESIRED.load(Ordering::SeqCst) {
-        unregister_navigation_hotkeys();
+        unregister_navigation_hotkeys_locked();
         return;
     }
 
     if should_suspend_navigation_hotkeys() {
-        unregister_navigation_hotkeys();
+        unregister_navigation_hotkeys_locked();
         return;
     }
 
     if !NAVIGATION_HOTKEYS_REGISTERED.load(Ordering::SeqCst) {
-        reload_navigation_hotkeys_from_settings();
+        reload_navigation_hotkeys_from_settings_locked();
     }
 }
 
 pub fn reload_navigation_hotkeys_from_settings() {
+    let _lifecycle_guard = NAVIGATION_HOTKEYS_LIFECYCLE_LOCK.lock();
+    reload_navigation_hotkeys_from_settings_locked();
+}
+
+fn reload_navigation_hotkeys_from_settings_locked() {
     if !NAVIGATION_HOTKEYS_DESIRED.load(Ordering::SeqCst) {
-        unregister_navigation_hotkeys();
+        unregister_navigation_hotkeys_locked();
         return;
     }
 
     if should_suspend_navigation_hotkeys() {
-        unregister_navigation_hotkeys();
+        unregister_navigation_hotkeys_locked();
         return;
     }
 
-    if let Err(error) = register_navigation_hotkeys_from_settings() {
+    if let Err(error) = register_navigation_hotkeys_from_settings_locked() {
         eprintln!("同步导航快捷键失败: {}", error);
     }
 }
 
-fn register_navigation_hotkeys_from_settings() -> Result<(), String> {
-    unregister_navigation_hotkeys();
+fn register_navigation_hotkeys_from_settings_locked() -> Result<(), String> {
+    if !unregister_navigation_hotkeys_locked() {
+        return Err("原有导航快捷键尚未完全注销，已取消重新注册".to_string());
+    }
 
     let app = get_app()?;
     let configs = navigation_shortcut_configs();
@@ -101,12 +114,12 @@ fn register_navigation_hotkeys_from_settings() -> Result<(), String> {
         let action = config.action.to_string();
         let shortcut_for_log = config.shortcut.clone();
 
-        match app.global_shortcut().on_shortcut(shortcut, move |_app, _shortcut, event| {
-            match event.state {
+        match app
+            .global_shortcut()
+            .on_shortcut(shortcut, move |_app, _shortcut, event| match event.state {
                 ShortcutState::Pressed => handle_navigation_pressed(&id, &action),
                 ShortcutState::Released => handle_navigation_released(&id),
-            }
-        }) {
+            }) {
             Ok(_) => {
                 println!("已注册导航快捷键 [{}]: {}", config.id, config.shortcut);
                 registrations.push(NavigationShortcutRegistration {
@@ -130,26 +143,50 @@ fn register_navigation_hotkeys_from_settings() -> Result<(), String> {
 }
 
 fn unregister_navigation_hotkeys() {
+    let _lifecycle_guard = NAVIGATION_HOTKEYS_LIFECYCLE_LOCK.lock();
+    unregister_navigation_hotkeys_locked();
+}
+
+fn unregister_navigation_hotkeys_locked() -> bool {
     let app = match get_app() {
         Ok(app) => app,
-        Err(_) => return,
+        Err(_) => return false,
     };
 
     let registrations = std::mem::take(&mut *NAVIGATION_SHORTCUTS.lock());
+    let mut remaining_registrations = Vec::new();
     for registration in registrations {
-        if let Ok(shortcut) = parse_shortcut(&registration.shortcut) {
-            let _ = app.global_shortcut().unregister(shortcut);
-            println!(
-                "已注销导航快捷键 [{}]: {}",
-                registration.id, registration.shortcut
-            );
+        match parse_shortcut(&registration.shortcut) {
+            Ok(shortcut) => match app.global_shortcut().unregister(shortcut) {
+                Ok(_) => println!(
+                    "已注销导航快捷键 [{}]: {}",
+                    registration.id, registration.shortcut
+                ),
+                Err(error) => {
+                    eprintln!(
+                        "注销导航快捷键 [{}] {} 失败，将在下次同步时重试: {}",
+                        registration.id, registration.shortcut, error
+                    );
+                    remaining_registrations.push(registration);
+                }
+            },
+            Err(error) => {
+                eprintln!(
+                    "解析已注册的导航快捷键 [{}] {} 失败，将在下次同步时重试: {}",
+                    registration.id, registration.shortcut, error
+                );
+                remaining_registrations.push(registration);
+            }
         }
     }
 
-    NAVIGATION_HOTKEYS_REGISTERED.store(false, Ordering::SeqCst);
+    let fully_unregistered = remaining_registrations.is_empty();
+    *NAVIGATION_SHORTCUTS.lock() = remaining_registrations;
+    NAVIGATION_HOTKEYS_REGISTERED.store(!fully_unregistered, Ordering::SeqCst);
     NAVIGATION_REPEAT_SEQUENCE.fetch_add(1, Ordering::SeqCst);
     NAVIGATION_REPEAT_TOKENS.lock().clear();
     NAVIGATION_THROTTLE_STATE.lock().clear();
+    fully_unregistered
 }
 
 fn navigation_shortcut_configs() -> Vec<NavigationShortcutConfig> {
@@ -235,7 +272,9 @@ fn start_navigation_repeat_if_needed(id: &str, action: &str) {
     let token = NAVIGATION_REPEAT_SEQUENCE
         .fetch_add(1, Ordering::SeqCst)
         .wrapping_add(1);
-    NAVIGATION_REPEAT_TOKENS.lock().insert(id.to_string(), token);
+    NAVIGATION_REPEAT_TOKENS
+        .lock()
+        .insert(id.to_string(), token);
 
     let id = id.to_string();
     let action = action.to_string();
@@ -257,11 +296,7 @@ fn should_continue_repeat(id: &str, token: u64) -> bool {
         return false;
     }
 
-    NAVIGATION_REPEAT_TOKENS
-        .lock()
-        .get(id)
-        .copied()
-        == Some(token)
+    NAVIGATION_REPEAT_TOKENS.lock().get(id).copied() == Some(token)
 }
 
 fn should_suspend_navigation_hotkeys() -> bool {

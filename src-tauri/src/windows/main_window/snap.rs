@@ -1,7 +1,7 @@
-use tauri::{WebviewWindow, Manager, Emitter};
-use super::state::{SnapEdge, set_snap_edge, set_hidden, clear_snap, is_snapped};
+use super::state::{clear_snap, is_snapped, set_hidden, set_snap_edge, SnapEdge};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
+use tauri::{Emitter, Manager, WebviewWindow};
 
 const SNAP_THRESHOLD: i32 = 30;
 const FRONTEND_CONTENT_INSET_LOGICAL: f64 = 5.0;
@@ -103,20 +103,22 @@ fn build_monitor_contexts(app: &tauri::AppHandle) -> Result<Vec<MonitorEdgeConte
                 .find(|(mx, my, mw, mh, _, _, _, _)| {
                     *mx == x && *my == y && *mw == width && *mh == height
                 })
-                .map(|(_, _, _, _, left_edge, right_edge, top_edge, bottom_edge)| {
-                    MonitorEdgeContext {
-                        id: build_monitor_identifier(&monitor),
-                        x,
-                        y,
-                        width,
-                        height,
-                        scale_factor,
-                        left_edge: *left_edge,
-                        right_edge: *right_edge,
-                        top_edge: *top_edge,
-                        bottom_edge: *bottom_edge,
-                    }
-                })
+                .map(
+                    |(_, _, _, _, left_edge, right_edge, top_edge, bottom_edge)| {
+                        MonitorEdgeContext {
+                            id: build_monitor_identifier(&monitor),
+                            x,
+                            y,
+                            width,
+                            height,
+                            scale_factor,
+                            left_edge: *left_edge,
+                            right_edge: *right_edge,
+                            top_edge: *top_edge,
+                            bottom_edge: *bottom_edge,
+                        }
+                    },
+                )
         })
         .collect();
     Ok(contexts)
@@ -176,11 +178,36 @@ fn resolve_usable_edge_on_monitor(
     preferred_edge: SnapEdge,
 ) -> Option<SnapEdge> {
     let ordered_edges = match preferred_edge {
-        SnapEdge::Top => [SnapEdge::Top, SnapEdge::Left, SnapEdge::Right, SnapEdge::Bottom],
-        SnapEdge::Bottom => [SnapEdge::Bottom, SnapEdge::Left, SnapEdge::Right, SnapEdge::Top],
-        SnapEdge::Left => [SnapEdge::Left, SnapEdge::Top, SnapEdge::Bottom, SnapEdge::Right],
-        SnapEdge::Right => [SnapEdge::Right, SnapEdge::Top, SnapEdge::Bottom, SnapEdge::Left],
-        SnapEdge::None => [SnapEdge::None, SnapEdge::Top, SnapEdge::Bottom, SnapEdge::Left],
+        SnapEdge::Top => [
+            SnapEdge::Top,
+            SnapEdge::Left,
+            SnapEdge::Right,
+            SnapEdge::Bottom,
+        ],
+        SnapEdge::Bottom => [
+            SnapEdge::Bottom,
+            SnapEdge::Left,
+            SnapEdge::Right,
+            SnapEdge::Top,
+        ],
+        SnapEdge::Left => [
+            SnapEdge::Left,
+            SnapEdge::Top,
+            SnapEdge::Bottom,
+            SnapEdge::Right,
+        ],
+        SnapEdge::Right => [
+            SnapEdge::Right,
+            SnapEdge::Top,
+            SnapEdge::Bottom,
+            SnapEdge::Left,
+        ],
+        SnapEdge::None => [
+            SnapEdge::None,
+            SnapEdge::Top,
+            SnapEdge::Bottom,
+            SnapEdge::Left,
+        ],
     };
 
     ordered_edges
@@ -347,8 +374,7 @@ pub(crate) fn resolve_snapped_position(
 ) -> Result<ResolvedSnapPosition, String> {
     let (monitor, actual_edge) = resolve_saved_monitor_and_edge(app, edge, monitor_id)?;
     let content_inset = get_content_inset(monitor.scale_factor);
-    let (base_x, base_y) =
-        resolve_position_in_monitor(&monitor, actual_edge, ratio, width, height);
+    let (base_x, base_y) = resolve_position_in_monitor(&monitor, actual_edge, ratio, width, height);
 
     let position = match actual_edge {
         SnapEdge::Left => (monitor.x - content_inset, base_y),
@@ -382,8 +408,7 @@ fn resolve_hidden_position(
     } else {
         content_inset + edge_hide_offset
     };
-    let (base_x, base_y) =
-        resolve_position_in_monitor(&monitor, actual_edge, ratio, width, height);
+    let (base_x, base_y) = resolve_position_in_monitor(&monitor, actual_edge, ratio, width, height);
 
     let position = match actual_edge {
         SnapEdge::Left => (monitor.x - width + hide_offset, base_y),
@@ -425,18 +450,18 @@ pub fn check_snap(window: &WebviewWindow) -> Result<(), String> {
     if !settings.edge_hide_enabled {
         return Ok(());
     }
-    
+
     let (x, y, w, h) = crate::utils::positioning::get_window_bounds(window)?;
-    
+
     let app = window.app_handle();
-    let (monitor_x, monitor_y, monitor_w, monitor_h) = 
+    let (monitor_x, monitor_y, monitor_w, monitor_h) =
         crate::utils::screen::ScreenUtils::get_monitor_at_point(app, x, y)?;
     let monitor_right = monitor_x + monitor_w;
     let monitor_bottom = monitor_y + monitor_h;
-    
-    let (left_is_edge, right_is_edge, top_is_edge, bottom_is_edge) = 
+
+    let (left_is_edge, right_is_edge, top_is_edge, bottom_is_edge) =
         crate::utils::screen::ScreenUtils::get_real_edges_at_point(app, x, y)?;
-    
+
     let edge = if left_is_edge && (x - monitor_x).abs() <= SNAP_THRESHOLD {
         Some(SnapEdge::Left)
     } else if right_is_edge && (monitor_right - (x + w as i32)).abs() <= SNAP_THRESHOLD {
@@ -448,7 +473,7 @@ pub fn check_snap(window: &WebviewWindow) -> Result<(), String> {
     } else {
         None
     };
-    
+
     if let Some(edge) = edge {
         let (monitor_id, ratio) = compute_snap_layout(app, edge, x, y, w as i32, h as i32)?;
         set_snap_edge(edge, Some((x, y)), Some(monitor_id.clone()), Some(ratio));
@@ -460,7 +485,7 @@ pub fn check_snap(window: &WebviewWindow) -> Result<(), String> {
         clear_saved_snap_layout();
         super::edge_monitor::stop_edge_monitoring();
     }
-    
+
     Ok(())
 }
 
@@ -476,7 +501,7 @@ pub fn snap_to_edge(window: &WebviewWindow, edge: SnapEdge) -> Result<(), String
         size.width as i32,
         size.height as i32,
     )?;
-    
+
     let resolved = resolve_snapped_position(
         window.app_handle(),
         edge,
@@ -485,22 +510,23 @@ pub fn snap_to_edge(window: &WebviewWindow, edge: SnapEdge) -> Result<(), String
         size.width as i32,
         size.height as i32,
     )?;
-    
-    window.set_position(tauri::PhysicalPosition::new(resolved.x, resolved.y))
+
+    window
+        .set_position(tauri::PhysicalPosition::new(resolved.x, resolved.y))
         .map_err(|e| e.to_string())?;
-    
+
     Ok(())
 }
 
 pub fn hide_snapped_window(window: &WebviewWindow) -> Result<(), String> {
     use tauri::Manager;
-    
+
     let state = super::state::get_window_state();
-    
+
     if !state.is_snapped || state.is_hidden {
         return Ok(());
     }
-    
+
     if crate::is_context_menu_visible() {
         return Ok(());
     }
@@ -534,12 +560,13 @@ pub fn hide_snapped_window(window: &WebviewWindow) -> Result<(), String> {
         size.height as i32,
         settings.edge_hide_offset,
     )?;
-    
+
     // 根据动画配置决定是否使用过渡
     if settings.clipboard_animation_enabled {
         animate_window_position(window, x, y, resolved.x, resolved.y, 200)?;
     } else {
-        window.set_position(tauri::PhysicalPosition::new(resolved.x, resolved.y))
+        window
+            .set_position(tauri::PhysicalPosition::new(resolved.x, resolved.y))
             .map_err(|e| e.to_string())?;
     }
     set_snap_edge(
@@ -550,13 +577,13 @@ pub fn hide_snapped_window(window: &WebviewWindow) -> Result<(), String> {
     );
     set_hidden(true);
     save_snap_layout(resolved.edge, ratio, Some(resolved.monitor_id));
-    
+
     super::state::set_window_state(super::state::WindowState::Hidden);
     crate::services::memory::schedule_cleanup_after_main_window_hide();
-    
+
     crate::input_monitor::disable_mouse_monitoring();
     crate::input_monitor::disable_navigation_keys();
-    
+
     Ok(())
 }
 
@@ -644,21 +671,18 @@ pub fn needs_hidden_snap_refresh(window: &WebviewWindow) -> Result<bool, String>
     )?;
 
     const POSITION_TOLERANCE: i32 = 2;
-    Ok(
-        (x - resolved.x).abs() > POSITION_TOLERANCE
-            || (y - resolved.y).abs() > POSITION_TOLERANCE,
-    )
+    Ok((x - resolved.x).abs() > POSITION_TOLERANCE || (y - resolved.y).abs() > POSITION_TOLERANCE)
 }
 
 pub fn show_snapped_window(window: &WebviewWindow) -> Result<(), String> {
     crate::windows::preview_window::resume_preview_after_main_window_show();
 
     let state = super::state::get_window_state();
-    
+
     if !state.is_snapped || !state.is_hidden {
         return Ok(());
     }
-    
+
     let size = window.outer_size().map_err(|e| e.to_string())?;
     let (x, y, _, _) = crate::utils::positioning::get_window_bounds(window)?;
     let settings = crate::get_settings();
@@ -684,18 +708,19 @@ pub fn show_snapped_window(window: &WebviewWindow) -> Result<(), String> {
         size.width as i32,
         size.height as i32,
     )?;
-    
+
     if !window.is_visible().unwrap_or(false) {
         let _ = window.show();
     }
     let _ = window.emit("edge-snap-show", ());
     let _ = crate::commands::window::emit_main_window_refresh_needed_event(&window.app_handle());
-    
+
     // 根据动画配置决定是否使用过渡
     if settings.clipboard_animation_enabled {
         animate_window_position(window, x, y, resolved.x, resolved.y, 200)?;
     } else {
-        window.set_position(tauri::PhysicalPosition::new(resolved.x, resolved.y))
+        window
+            .set_position(tauri::PhysicalPosition::new(resolved.x, resolved.y))
             .map_err(|e| e.to_string())?;
     }
     set_snap_edge(
@@ -706,14 +731,14 @@ pub fn show_snapped_window(window: &WebviewWindow) -> Result<(), String> {
     );
     set_hidden(false);
     save_snap_layout(resolved.edge, ratio, Some(resolved.monitor_id));
-    
+
     super::state::set_window_state(super::state::WindowState::Visible);
     crate::services::webdav_sync::notify_main_window_shown(window.app_handle().clone());
     let _ = super::refresh_always_on_top(window);
 
     crate::input_monitor::enable_mouse_monitoring();
     crate::input_monitor::enable_navigation_keys();
-    
+
     Ok(())
 }
 
@@ -728,11 +753,11 @@ fn animate_window_position(
     let version = ANIMATION_VERSION.fetch_add(1, Ordering::SeqCst) + 1;
     let window_clone = window.clone();
     let app = window.app_handle().clone();
-    
+
     std::thread::spawn(move || {
         let frame_duration = Duration::from_millis(16);
         let total_frames = duration_ms / 16;
-        
+
         if total_frames == 0 {
             let window_for_task = window_clone.clone();
             let _ = app.run_on_main_thread(move || {
@@ -740,31 +765,32 @@ fn animate_window_position(
             });
             return;
         }
-        
+
         let dx = end_x - start_x;
         let dy = end_y - start_y;
-        
+
         for frame in 0..=total_frames {
             if ANIMATION_VERSION.load(Ordering::SeqCst) != version {
                 return;
             }
-            
+
             let progress = frame as f32 / total_frames as f32;
             let eased_progress = 1.0 - (1.0 - progress).powi(2);
-            
+
             let current_x = start_x + (dx as f32 * eased_progress) as i32;
             let current_y = start_y + (dy as f32 * eased_progress) as i32;
-            
+
             let window_for_task = window_clone.clone();
             let _ = app.run_on_main_thread(move || {
-                let _ = window_for_task.set_position(tauri::PhysicalPosition::new(current_x, current_y));
+                let _ = window_for_task
+                    .set_position(tauri::PhysicalPosition::new(current_x, current_y));
             });
-            
+
             if frame < total_frames {
                 std::thread::sleep(frame_duration);
             }
         }
-        
+
         if ANIMATION_VERSION.load(Ordering::SeqCst) == version {
             let window_for_task = window_clone.clone();
             let _ = app.run_on_main_thread(move || {
@@ -772,18 +798,19 @@ fn animate_window_position(
             });
         }
     });
-    
+
     Ok(())
 }
 
 pub fn restore_from_snap(window: &WebviewWindow) -> Result<(), String> {
     let state = super::state::get_window_state();
-    
+
     if let Some(pos) = state.snap_position {
-        window.set_position(tauri::PhysicalPosition::new(pos.0, pos.1))
+        window
+            .set_position(tauri::PhysicalPosition::new(pos.0, pos.1))
             .map_err(|e| e.to_string())?;
     }
-    
+
     clear_snap();
     Ok(())
 }
@@ -833,20 +860,21 @@ pub fn restore_edge_snap_on_startup(window: &WebviewWindow) -> Result<(), String
         Some(snapped_ratio),
     );
     set_hidden(true);
-    
-    window.set_position(tauri::PhysicalPosition::new(resolved.x, resolved.y))
+
+    window
+        .set_position(tauri::PhysicalPosition::new(resolved.x, resolved.y))
         .map_err(|e| e.to_string())?;
     save_snap_layout(resolved.edge, snapped_ratio, Some(resolved.monitor_id));
-    
+
     let _ = window.show();
     let _ = window.set_always_on_top(true);
-    
+
     super::state::set_window_state(super::state::WindowState::Hidden);
-    
+
     crate::input_monitor::disable_mouse_monitoring();
     crate::input_monitor::disable_navigation_keys();
-    
+
     super::edge_monitor::start_edge_monitoring();
-    
+
     Ok(())
 }

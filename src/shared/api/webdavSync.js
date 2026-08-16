@@ -16,10 +16,6 @@ export async function downloadAllWebdav() {
   return await invoke('webdav_download_all');
 }
 
-export async function getWebdavStatus() {
-  return await invoke('webdav_get_status');
-}
-
 export async function getWebdavLastReport() {
   return await invoke('webdav_get_last_report');
 }

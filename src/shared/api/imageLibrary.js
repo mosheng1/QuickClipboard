@@ -16,11 +16,6 @@ async function uint8ArrayToNumberArrayChunked(data, chunkSize = 256 * 1024) {
   return result
 }
 
-// 初始化图片库目录
-export async function initImageLibrary() {
-  return await invoke('il_init')
-}
-
 // 保存图片
 export async function saveImage(group, filename, data) {
   const payloadData = await uint8ArrayToNumberArrayChunked(data)
@@ -88,16 +83,6 @@ export async function deleteImageGroup(name, moveImagesToDefault = false) {
   return await invoke('il_delete_group', {
     payload: { name, move_images_to_default: moveImagesToDefault }
   })
-}
-
-// 获取图片目录路径
-export async function getImagesDir() {
-  return await invoke('il_get_images_dir')
-}
-
-// 获取 GIF 目录路径
-export async function getGifsDir() {
-  return await invoke('il_get_gifs_dir')
 }
 
 // 将本地路径转换为URL

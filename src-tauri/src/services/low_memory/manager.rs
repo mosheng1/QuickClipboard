@@ -1,21 +1,16 @@
-use tauri::{AppHandle, Manager};
+use super::state::{
+    finish_exit_low_memory, is_low_memory_mode, last_window_activity_at_ms, mark_window_activity,
+    set_low_memory_mode, set_user_requested_exit, try_mark_auto_manager_started,
+    try_start_exit_low_memory,
+};
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
-use super::state::{
-    is_low_memory_mode,
-    last_window_activity_at_ms,
-    mark_window_activity,
-    set_low_memory_mode,
-    set_user_requested_exit,
-    try_mark_auto_manager_started,
-    try_start_exit_low_memory,
-    finish_exit_low_memory,
-};
+use tauri::{AppHandle, Manager};
 
 // 需要销毁的 WebView 窗口列表
 const WEBVIEW_LABELS: &[&str] = &[
     "main",
-    "quickpaste", 
+    "quickpaste",
     "context-menu",
     "settings",
     "text-editor",
@@ -71,13 +66,13 @@ pub fn enter_low_memory_mode(app: &AppHandle) -> Result<(), String> {
 
     // 清理内存
     crate::services::memory::cleanup_memory_respecting_settings();
-    
+
     let _ = crate::services::notification::show_notification(
         app,
         "低占用模式",
         "已进入低占用模式，所有窗口已关闭。\n使用托盘菜单或使用快捷键可恢复。",
     );
-    
+
     println!("[低占用模式] 已进入");
     Ok(())
 }
@@ -269,11 +264,47 @@ fn destroy_all_webviews(app: &AppHandle) {
 }
 
 // 重建主窗口
+pub fn ensure_main_window(app: &AppHandle) -> Result<tauri::WebviewWindow, String> {
+    if let Some(window) = app.get_webview_window("main") {
+        #[cfg(windows)]
+        if window.hwnd().is_ok() {
+            return Ok(window);
+        }
+
+        #[cfg(not(windows))]
+        {
+            return Ok(window);
+        }
+
+        let _ = window.destroy();
+    }
+
+    recreate_main_window(app)?;
+    let window = app
+        .get_webview_window("main")
+        .ok_or_else(|| "主窗口重建后仍不可用".to_string())?;
+    #[cfg(windows)]
+    if window.hwnd().is_err() {
+        return Err("主窗口重建后句柄仍不可用".to_string());
+    }
+    Ok(window)
+}
+
 fn recreate_main_window(app: &AppHandle) -> Result<(), String> {
     use tauri::{WebviewUrl, WebviewWindowBuilder};
 
-    if app.get_webview_window("main").is_some() {
-        return Ok(());
+    if let Some(window) = app.get_webview_window("main") {
+        #[cfg(windows)]
+        if window.hwnd().is_ok() {
+            return Ok(());
+        }
+
+        #[cfg(not(windows))]
+        {
+            return Ok(());
+        }
+
+        let _ = window.destroy();
     }
 
     let settings = crate::get_settings();
@@ -296,27 +327,32 @@ fn recreate_main_window(app: &AppHandle) -> Result<(), String> {
     .shadow(false)
     .always_on_top(true)
     .skip_taskbar(true)
-    .visible(false) 
+    .visible(false)
     .resizable(true)
     .maximizable(false)
     .minimizable(false)
     .center()
     .focused(false)
     .visible_on_all_workspaces(true)
-    .disable_drag_drop_handler() 
+    .disable_drag_drop_handler()
     .build()
     .map_err(|e| format!("重建主窗口失败: {}", e))?;
 
     if settings.remember_window_size {
         crate::windows::main_window::apply_saved_window_size(&window, width, height);
     }
-    
+
     let _ = window.set_focusable(false);
-    
+
     #[cfg(debug_assertions)]
     let _ = window.open_devtools();
 
     crate::input_monitor::update_main_window(window.clone());
+
+    #[cfg(windows)]
+    if let Ok(hwnd) = window.hwnd() {
+        crate::services::system::focus::add_excluded_hwnd(hwnd.0 as isize);
+    }
 
     crate::init_edge_monitor(window.clone());
 

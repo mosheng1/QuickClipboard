@@ -9,7 +9,8 @@ const DISCOVERY_PORT: u16 = 35692;
 const DISCOVERY_PROTOCOL: &str = "quickclipboard-sync-transfer-lan-discovery";
 const PACKET_LIMIT: usize = 2048;
 
-static RESPONDER: Lazy<tokio::sync::Mutex<Option<ResponderState>>> = Lazy::new(|| tokio::sync::Mutex::new(None));
+static RESPONDER: Lazy<tokio::sync::Mutex<Option<ResponderState>>> =
+    Lazy::new(|| tokio::sync::Mutex::new(None));
 
 struct ResponderState {
     http_port: u16,
@@ -105,7 +106,8 @@ pub async fn discover(timeout_ms: u64) -> Result<Vec<DiscoveredLanPeer>, String>
         .map_err(|e| format!("启用局域网发现广播失败: {}", e))?;
 
     let request = request_packet();
-    let bytes = serde_json::to_vec(&request).map_err(|e| format!("序列化局域网发现请求失败: {}", e))?;
+    let bytes =
+        serde_json::to_vec(&request).map_err(|e| format!("序列化局域网发现请求失败: {}", e))?;
     for target in discovery_targets() {
         let _ = socket.send_to(&bytes, target).await;
     }
@@ -127,7 +129,10 @@ pub async fn discover(timeout_ms: u64) -> Result<Vec<DiscoveredLanPeer>, String>
         let Ok(packet) = serde_json::from_slice::<DiscoveryPacket>(&buffer[..len]) else {
             continue;
         };
-        if packet.protocol != DISCOVERY_PROTOCOL || packet.kind != "response" || packet.device_id == own_device_id {
+        if packet.protocol != DISCOVERY_PROTOCOL
+            || packet.kind != "response"
+            || packet.device_id == own_device_id
+        {
             continue;
         }
         peers.insert(
@@ -142,7 +147,11 @@ pub async fn discover(timeout_ms: u64) -> Result<Vec<DiscoveredLanPeer>, String>
     }
 
     let mut peers = peers.into_values().collect::<Vec<_>>();
-    peers.sort_by(|a, b| a.device_name.cmp(&b.device_name).then(a.device_id.cmp(&b.device_id)));
+    peers.sort_by(|a, b| {
+        a.device_name
+            .cmp(&b.device_name)
+            .then(a.device_id.cmp(&b.device_id))
+    });
     Ok(peers)
 }
 
@@ -199,14 +208,20 @@ fn response_packet(http_port: u16) -> DiscoveryPacket {
 }
 
 fn discovery_targets() -> Vec<SocketAddr> {
-    let mut targets = vec![SocketAddr::new(IpAddr::V4(Ipv4Addr::BROADCAST), DISCOVERY_PORT)];
+    let mut targets = vec![SocketAddr::new(
+        IpAddr::V4(Ipv4Addr::BROADCAST),
+        DISCOVERY_PORT,
+    )];
     if let Ok(addrs) = if_addrs::get_if_addrs() {
         for iface in addrs {
             let if_addrs::IfAddr::V4(addr) = iface.addr else {
                 continue;
             };
             let broadcast = ipv4_broadcast(addr.ip, addr.netmask);
-            if !targets.iter().any(|target| target.ip() == IpAddr::V4(broadcast)) {
+            if !targets
+                .iter()
+                .any(|target| target.ip() == IpAddr::V4(broadcast))
+            {
                 targets.push(SocketAddr::new(IpAddr::V4(broadcast), DISCOVERY_PORT));
             }
         }

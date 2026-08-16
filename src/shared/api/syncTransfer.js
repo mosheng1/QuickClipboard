@@ -8,14 +8,6 @@ export async function getSyncTransferLanStatus() {
   return await invoke('sync_transfer_lan_get_status');
 }
 
-export async function startSyncTransferLanHttpServer() {
-  return await invoke('sync_transfer_lan_start_http_server');
-}
-
-export async function stopSyncTransferLanHttpServer() {
-  return await invoke('sync_transfer_lan_stop_http_server');
-}
-
 export async function refreshSyncTransferLanPairingCode() {
   return await invoke('sync_transfer_lan_refresh_pairing_code');
 }
@@ -63,22 +55,9 @@ export async function updateSyncTransferLanAutoSyncSettings(settings) {
   });
 }
 
-export async function pullSyncTransferLanPeer(deviceId) {
-  return await invoke('sync_transfer_lan_pull_from_peer', {
-    deviceId,
-  });
-}
-
 export async function pushSyncTransferLanPeer(deviceId) {
   return await invoke('sync_transfer_lan_push_to_peer', {
     deviceId,
   });
 }
 
-export async function sendSyncTransferLanFileToPeer(deviceId, filePath, transferId = null) {
-  return await invoke('sync_transfer_lan_send_file_to_peer', {
-    deviceId,
-    filePath,
-    transferId,
-  });
-}

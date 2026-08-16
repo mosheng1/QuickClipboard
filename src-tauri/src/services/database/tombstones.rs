@@ -79,7 +79,10 @@ pub(crate) fn delete_sync_tombstone_in_conn(
     Ok(())
 }
 
-pub(crate) fn restored_record_updated_at(updated_at: i64, tombstone_deleted_at: Option<i64>) -> i64 {
+pub(crate) fn restored_record_updated_at(
+    updated_at: i64,
+    tombstone_deleted_at: Option<i64>,
+) -> i64 {
     let now = chrono::Utc::now().timestamp();
     match tombstone_deleted_at {
         Some(deleted_at) => updated_at.max(now).max(deleted_at.saturating_add(1)),
@@ -87,7 +90,9 @@ pub(crate) fn restored_record_updated_at(updated_at: i64, tombstone_deleted_at: 
     }
 }
 
-pub fn list_sync_tombstones_since(since_deleted_at: Option<i64>) -> Result<Vec<SyncTombstone>, String> {
+pub fn list_sync_tombstones_since(
+    since_deleted_at: Option<i64>,
+) -> Result<Vec<SyncTombstone>, String> {
     with_connection(|conn| {
         let mut tombstones = Vec::new();
         if let Some(since_deleted_at) = since_deleted_at {
@@ -118,7 +123,8 @@ pub fn list_sync_tombstones_since(since_deleted_at: Option<i64>) -> Result<Vec<S
 
 pub fn sync_tombstone_states() -> Result<HashMap<String, i64>, String> {
     with_connection(|conn| {
-        let mut stmt = conn.prepare("SELECT collection, item_id, deleted_at FROM sync_tombstones")?;
+        let mut stmt =
+            conn.prepare("SELECT collection, item_id, deleted_at FROM sync_tombstones")?;
         let rows = stmt.query_map([], |row| {
             Ok((
                 row.get::<_, String>(0)?,
@@ -155,7 +161,10 @@ pub fn upsert_sync_tombstones(tombstones: &[SyncTombstone]) -> Result<Vec<SyncTo
                     |row| row.get::<_, i64>(0),
                 )
                 .optional()?;
-            if existing_deleted_at.map(|value| value >= tombstone.deleted_at).unwrap_or(false) {
+            if existing_deleted_at
+                .map(|value| value >= tombstone.deleted_at)
+                .unwrap_or(false)
+            {
                 continue;
             }
 
@@ -181,7 +190,9 @@ pub fn upsert_sync_tombstones(tombstones: &[SyncTombstone]) -> Result<Vec<SyncTo
     })
 }
 
-pub fn apply_sync_tombstones(tombstones: &[SyncTombstone]) -> Result<SyncTombstoneApplyReport, String> {
+pub fn apply_sync_tombstones(
+    tombstones: &[SyncTombstone],
+) -> Result<SyncTombstoneApplyReport, String> {
     if tombstones.is_empty() {
         return Ok(SyncTombstoneApplyReport::default());
     }
@@ -220,7 +231,10 @@ pub fn apply_sync_tombstones(tombstones: &[SyncTombstone]) -> Result<SyncTombsto
     Ok(report)
 }
 
-pub fn filter_records_not_deleted(collection: &str, records: &[CloudRecord]) -> Result<Vec<CloudRecord>, String> {
+pub fn filter_records_not_deleted(
+    collection: &str,
+    records: &[CloudRecord],
+) -> Result<Vec<CloudRecord>, String> {
     let states = sync_tombstone_states()?;
     Ok(records
         .iter()
@@ -287,7 +301,10 @@ pub fn tombstones_newer_than_remote(
         .into_iter()
         .filter(|tombstone| {
             remote_states
-                .get(&tombstone_state_key(&tombstone.collection, &tombstone.item_id))
+                .get(&tombstone_state_key(
+                    &tombstone.collection,
+                    &tombstone.item_id,
+                ))
                 .map(|remote_deleted_at| *remote_deleted_at < tombstone.deleted_at)
                 .unwrap_or(true)
         })
@@ -365,7 +382,10 @@ fn delete_favorite_by_tombstone(
         return Ok(false);
     }
 
-    conn.execute("DELETE FROM favorites WHERE id = ?1", params![tombstone.item_id])?;
+    conn.execute(
+        "DELETE FROM favorites WHERE id = ?1",
+        params![tombstone.item_id],
+    )?;
     conn.execute(
         "DELETE FROM clipboard_data WHERE target_kind = 'favorite' AND target_id = ?1",
         params![tombstone.item_id],
@@ -374,7 +394,10 @@ fn delete_favorite_by_tombstone(
     Ok(true)
 }
 
-fn delete_group_by_tombstone(conn: &rusqlite::Connection, tombstone: &SyncTombstone) -> Result<bool, rusqlite::Error> {
+fn delete_group_by_tombstone(
+    conn: &rusqlite::Connection,
+    tombstone: &SyncTombstone,
+) -> Result<bool, rusqlite::Error> {
     if tombstone.item_id == "全部" {
         return Ok(false);
     }
@@ -397,7 +420,10 @@ fn delete_group_by_tombstone(conn: &rusqlite::Connection, tombstone: &SyncTombst
         "UPDATE favorites SET group_name = '全部' WHERE group_name = ?1",
         params![tombstone.item_id],
     )?;
-    conn.execute("DELETE FROM groups WHERE name = ?1", params![tombstone.item_id])?;
+    conn.execute(
+        "DELETE FROM groups WHERE name = ?1",
+        params![tombstone.item_id],
+    )?;
     Ok(true)
 }
 
@@ -434,7 +460,10 @@ fn delete_unreferenced_image_files(image_ids: Vec<String>) -> Result<(), String>
     })
 }
 
-fn is_image_id_referenced(conn: &rusqlite::Connection, image_id: &str) -> Result<bool, rusqlite::Error> {
+fn is_image_id_referenced(
+    conn: &rusqlite::Connection,
+    image_id: &str,
+) -> Result<bool, rusqlite::Error> {
     let exact = image_id;
     let prefix = format!("{},%", image_id);
     let middle = format!("%,{},%", image_id);
@@ -445,7 +474,9 @@ fn is_image_id_referenced(conn: &rusqlite::Connection, image_id: &str) -> Result
             "SELECT EXISTS(SELECT 1 FROM {} WHERE image_id = ?1 OR image_id LIKE ?2 OR image_id LIKE ?3 OR image_id LIKE ?4)",
             table
         );
-        let exists: i64 = conn.query_row(&sql, params![exact, prefix, middle, suffix], |row| row.get(0))?;
+        let exists: i64 = conn.query_row(&sql, params![exact, prefix, middle, suffix], |row| {
+            row.get(0)
+        })?;
         Ok(exists != 0)
     };
 

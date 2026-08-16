@@ -23,7 +23,9 @@ pub fn launch_context() -> StartupLaunchContext {
 }
 
 pub fn is_uninstall_cleanup_requested() -> bool {
-    env::args().skip(1).any(|argument| argument == UNINSTALL_CLEANUP_ARG)
+    env::args()
+        .skip(1)
+        .any(|argument| argument == UNINSTALL_CLEANUP_ARG)
 }
 
 #[cfg(target_os = "windows")]
@@ -36,7 +38,7 @@ mod platform {
     use std::io;
     use std::os::windows::ffi::{OsStrExt, OsStringExt};
     use std::path::{Path, PathBuf};
-    use windows::core::{BSTR, HRESULT, Interface, PCWSTR};
+    use windows::core::{Interface, BSTR, HRESULT, PCWSTR};
     use windows::Win32::Foundation::{
         CloseHandle, ERROR_FILE_NOT_FOUND, RPC_E_CHANGED_MODE, VARIANT_FALSE, VARIANT_TRUE,
     };
@@ -49,17 +51,15 @@ mod platform {
     };
     use windows::Win32::System::TaskScheduler::{
         IActionCollection, IExecAction, ILogonTrigger, IRegisteredTask, ITaskDefinition,
-        ITaskFolder, ITaskService, TASK_ACTION_EXEC, TASK_CREATE_OR_UPDATE,
+        ITaskFolder, ITaskService, TaskScheduler, TASK_ACTION_EXEC, TASK_CREATE_OR_UPDATE,
         TASK_INSTANCES_PARALLEL, TASK_LOGON_INTERACTIVE_TOKEN, TASK_RUNLEVEL_HIGHEST,
-        TASK_TRIGGER_LOGON, TaskScheduler,
+        TASK_TRIGGER_LOGON,
     };
     use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
     use windows::Win32::System::Variant::VARIANT;
     use windows::Win32::UI::Shell::ShellExecuteW;
     use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
-    use winreg::enums::{
-        HKEY_CURRENT_USER, KEY_READ, KEY_SET_VALUE, REG_BINARY,
-    };
+    use winreg::enums::{HKEY_CURRENT_USER, KEY_READ, KEY_SET_VALUE, REG_BINARY};
     use winreg::{RegKey, RegValue};
 
     const APP_NAME: &str = "QuickClipboard";
@@ -117,10 +117,9 @@ mod platform {
             let empty = VARIANT::default();
 
             // SAFETY: TaskScheduler 是系统注册的 COM 类，返回的接口由 windows crate 管理生命周期。
-            let service: ITaskService = unsafe {
-                CoCreateInstance(&TaskScheduler, None, CLSCTX_INPROC_SERVER)
-            }
-            .map_err(|error| format!("连接 Windows 任务计划程序失败: {error}"))?;
+            let service: ITaskService =
+                unsafe { CoCreateInstance(&TaskScheduler, None, CLSCTX_INPROC_SERVER) }
+                    .map_err(|error| format!("连接 Windows 任务计划程序失败: {error}"))?;
 
             // SAFETY: 传入 VT_EMPTY 表示连接本机并使用当前交互用户。
             unsafe { service.Connect(&empty, &empty, &empty, &empty) }
@@ -249,10 +248,8 @@ mod platform {
 
     pub fn delete_admin_task() -> Result<(), String> {
         let client = TaskClient::connect()?;
-        let mut task_names = HashSet::from([
-            client.task_name.clone(),
-            LEGACY_ADMIN_TASK_NAME.to_string(),
-        ]);
+        let mut task_names =
+            HashSet::from([client.task_name.clone(), LEGACY_ADMIN_TASK_NAME.to_string()]);
         if let Some(stored_name) = stored_admin_task_name()? {
             if is_managed_task_name(&stored_name) {
                 task_names.insert(stored_name);
@@ -299,10 +296,9 @@ mod platform {
             .set_value(APP_NAME, &command)
             .map_err(|error| format!("写入开机自启动注册表失败: {error}"))?;
 
-        if let Ok(approved_key) = current_user.open_subkey_with_flags(
-            STARTUP_APPROVED_KEY,
-            KEY_READ | KEY_SET_VALUE,
-        ) {
+        if let Ok(approved_key) =
+            current_user.open_subkey_with_flags(STARTUP_APPROVED_KEY, KEY_READ | KEY_SET_VALUE)
+        {
             approved_key
                 .set_raw_value(
                     APP_NAME,
@@ -322,10 +318,9 @@ mod platform {
             delete_registry_value_if_exists(&run_key, APP_NAME)
                 .map_err(|error| format!("删除开机自启动注册表失败: {error}"))?;
         }
-        if let Ok(approved_key) = current_user.open_subkey_with_flags(
-            STARTUP_APPROVED_KEY,
-            KEY_SET_VALUE,
-        ) {
+        if let Ok(approved_key) =
+            current_user.open_subkey_with_flags(STARTUP_APPROVED_KEY, KEY_SET_VALUE)
+        {
             delete_registry_value_if_exists(&approved_key, APP_NAME)
                 .map_err(|error| format!("清理 Windows 启动项状态失败: {error}"))?;
         }
@@ -349,7 +344,8 @@ mod platform {
             return Ok(false);
         }
 
-        let approved_key = match current_user.open_subkey_with_flags(STARTUP_APPROVED_KEY, KEY_READ) {
+        let approved_key = match current_user.open_subkey_with_flags(STARTUP_APPROVED_KEY, KEY_READ)
+        {
             Ok(key) => key,
             Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(true),
             Err(error) => return Err(format!("读取 Windows 启动项状态失败: {error}")),
@@ -567,7 +563,11 @@ mod platform {
                     .map_err(|error| format!("设置登录触发用户失败: {error}"))?;
             }
 
-            configure_exec_action(&definition.Actions().map_err(task_query_error)?, &exe, auto_start)?;
+            configure_exec_action(
+                &definition.Actions().map_err(task_query_error)?,
+                &exe,
+                auto_start,
+            )?;
 
             let empty = VARIANT::default();
             client
@@ -618,8 +618,7 @@ mod platform {
         let empty = VARIANT::default();
 
         // SAFETY: 任务已通过路径、参数、用户和最高权限校验。
-        unsafe { task.Run(&empty) }
-            .map_err(|error| format!("运行管理员启动任务失败: {error}"))?;
+        unsafe { task.Run(&empty) }.map_err(|error| format!("运行管理员启动任务失败: {error}"))?;
         // 任务提交成功后由任务计划程序负责启动。普通进程可能无权查询管理员任务的 PID，
         // 且桥接实例可能在通知已有实例后立即退出，不能据此回退到 UAC。
         Ok(true)
@@ -790,16 +789,17 @@ mod platform {
         #[test]
         fn admin_task_arguments_match_trigger_mode() {
             assert_eq!(admin_task_arguments(false), "--admin-relaunch");
-            assert_eq!(
-                admin_task_arguments(true),
-                "--admin-relaunch --autostart"
-            );
+            assert_eq!(admin_task_arguments(true), "--admin-relaunch --autostart");
         }
 
         #[test]
         fn startup_approved_state_distinguishes_enabled_and_disabled() {
-            assert!(startup_approved_enabled(&[0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]));
-            assert!(!startup_approved_enabled(&[0x03, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8]));
+            assert!(startup_approved_enabled(&[
+                0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+            ]));
+            assert!(!startup_approved_enabled(&[
+                0x03, 0, 0, 0, 1, 2, 3, 4, 5, 6, 7, 8
+            ]));
         }
 
         #[test]
@@ -855,10 +855,7 @@ pub fn configure_auto_start(_enabled: bool, _run_as_admin: bool) -> Result<(), S
 }
 
 #[cfg(not(target_os = "windows"))]
-pub fn repair_startup_configuration(
-    _auto_start: bool,
-    _run_as_admin: bool,
-) -> Result<(), String> {
+pub fn repair_startup_configuration(_auto_start: bool, _run_as_admin: bool) -> Result<(), String> {
     Ok(())
 }
 

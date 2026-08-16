@@ -4,10 +4,6 @@ export async function openReceiveBox() {
   return await invoke('receive_box_open');
 }
 
-export async function focusReceiveBox() {
-  return await invoke('receive_box_focus');
-}
-
 export async function listReceiveBoxLanFiles() {
   return await invoke('receive_box_list_lan_files');
 }

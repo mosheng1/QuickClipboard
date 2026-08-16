@@ -87,21 +87,24 @@ pub fn toggle_main_window_visibility(app: &AppHandle) {
         return;
     }
 
-    if let Some(window) = super::get_main_window(app) {
-        if crate::services::system::is_front_app_globally_disabled_from_settings() {
-            return;
+    match crate::services::low_memory::ensure_main_window(app) {
+        Ok(window) => {
+            if crate::services::system::is_front_app_globally_disabled_from_settings() {
+                return;
+            }
+
+            let state = super::state::get_window_state();
+
+            let should_show =
+                state.is_snapped && state.is_hidden || state.state != WindowState::Visible;
+
+            if should_show {
+                show_main_window(&window);
+            } else {
+                hide_main_window(&window);
+            }
         }
-
-        let state = super::state::get_window_state();
-
-        let should_show =
-            state.is_snapped && state.is_hidden || state.state != WindowState::Visible;
-
-        if should_show {
-            show_main_window(&window);
-        } else {
-            hide_main_window(&window);
-        }
+        Err(error) => eprintln!("确保主窗口可用失败: {}", error),
     }
 }
 

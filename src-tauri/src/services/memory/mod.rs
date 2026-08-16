@@ -11,15 +11,16 @@ const HIDE_CLEANUP_DELAY_MS: u64 = 350;
 static HIDE_CLEANUP_PENDING: AtomicBool = AtomicBool::new(false);
 
 #[cfg(windows)]
+use windows::Win32::Foundation::CloseHandle;
+#[cfg(windows)]
 use windows::Win32::System::{
     Diagnostics::ToolHelp::{
         CreateToolhelp32Snapshot, Process32FirstW, Process32NextW, PROCESSENTRY32W,
         TH32CS_SNAPPROCESS,
     },
     Memory::{
-        HeapCompact, GetProcessHeap,
-        SetProcessWorkingSetSizeEx,
-        QUOTA_LIMITS_HARDWS_MIN_DISABLE, QUOTA_LIMITS_HARDWS_MAX_DISABLE,
+        GetProcessHeap, HeapCompact, SetProcessWorkingSetSizeEx, QUOTA_LIMITS_HARDWS_MAX_DISABLE,
+        QUOTA_LIMITS_HARDWS_MIN_DISABLE,
     },
     Threading::{
         GetCurrentProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SET_QUOTA,
@@ -27,9 +28,7 @@ use windows::Win32::System::{
 };
 
 #[cfg(windows)]
-fn trim_process_working_set(
-    process: windows::Win32::Foundation::HANDLE,
-) {
+fn trim_process_working_set(process: windows::Win32::Foundation::HANDLE) {
     unsafe {
         let _ = SetProcessWorkingSetSizeEx(
             process,
@@ -61,6 +60,7 @@ fn collect_descendant_process_ids(root_pid: u32) -> Vec<u32> {
 
         has_entry = unsafe { Process32NextW(snapshot, &mut entry) }.is_ok();
     }
+    let _ = unsafe { CloseHandle(snapshot) };
 
     let mut descendants = Vec::new();
     let mut visited = HashSet::new();
@@ -96,6 +96,7 @@ fn cleanup_descendant_processes(root_pid: u32) {
 
         if let Ok(process) = handle {
             trim_process_working_set(process);
+            let _ = unsafe { CloseHandle(process) };
         }
     }
 }

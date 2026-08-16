@@ -1,4 +1,7 @@
-use crate::services::database::{get_all_groups, add_group as db_add_group, update_group as db_update_group, delete_group as db_delete_group, reorder_groups as db_reorder_groups, GroupInfo};
+use crate::services::database::{
+    add_group as db_add_group, delete_group as db_delete_group, get_all_groups,
+    reorder_groups as db_reorder_groups, update_group as db_update_group, GroupInfo,
+};
 
 // 获取所有分组
 #[tauri::command]
@@ -18,7 +21,12 @@ pub fn add_group(name: String, icon: String, color: String) -> Result<GroupInfo,
 
 // 更新分组
 #[tauri::command]
-pub fn update_group(old_name: String, new_name: String, new_icon: String, new_color: String) -> Result<GroupInfo, String> {
+pub fn update_group(
+    old_name: String,
+    new_name: String,
+    new_icon: String,
+    new_color: String,
+) -> Result<GroupInfo, String> {
     let result = db_update_group(old_name, new_name, new_icon, new_color);
     if result.is_ok() {
         notify_lan_change("groups");
@@ -51,4 +59,3 @@ fn notify_lan_change(reason: &'static str) {
         crate::services::sync_transfer::lan_notify_local_change(app, reason);
     }
 }
-

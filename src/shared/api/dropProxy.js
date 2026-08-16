@@ -27,10 +27,6 @@ export async function hideDropProxy() {
   return await invoke('drop_proxy_hide');
 }
 
-export async function disposeDropProxy() {
-  return await invoke('drop_proxy_dispose');
-}
-
 export async function routeDropProxyPathsAtCursor(paths, cursorPos) {
   return await invoke('drop_proxy_route_paths_at_cursor', { paths, cursorPos });
 }

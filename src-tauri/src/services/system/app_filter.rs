@@ -26,7 +26,12 @@ pub enum ClipboardSourceType {
     Unknown,
 }
 
-fn matches_filter_rule_text(process_name: &str, window_title: &str, process_path: &str, filter: &str) -> bool {
+fn matches_filter_rule_text(
+    process_name: &str,
+    window_title: &str,
+    process_path: &str,
+    filter: &str,
+) -> bool {
     let filter = filter.trim();
     if filter.is_empty() {
         return false;
@@ -50,25 +55,28 @@ mod windows_impl {
     use super::*;
     use once_cell::sync::Lazy;
     use parking_lot::Mutex;
-    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
     static CLIPBOARD_SOURCE_CACHE: Lazy<Mutex<Option<ClipboardSourceInfo>>> =
         Lazy::new(|| Mutex::new(None));
 
     static SOURCE_MONITOR_RUNNING: AtomicBool = AtomicBool::new(false);
+    static SOURCE_MONITOR_THREAD_ID: AtomicU32 = AtomicU32::new(0);
 
     // 启动剪贴板来源监控
     pub fn start_clipboard_source_monitor() {
         use std::thread;
-        use windows::Win32::Foundation::{HWND, LPARAM, WPARAM, LRESULT};
-        use windows::Win32::UI::WindowsAndMessaging::{
-            CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW,
-            GetMessageW, RegisterClassW, TranslateMessage, MSG, WNDCLASSW,
-            WM_CLIPBOARDUPDATE, WINDOW_EX_STYLE, WS_OVERLAPPED,
+        use windows::core::w;
+        use windows::Win32::Foundation::{
+            GetLastError, ERROR_CLASS_ALREADY_EXISTS, HWND, LPARAM, LRESULT, WPARAM,
         };
         use windows::Win32::System::DataExchange::{
             AddClipboardFormatListener, RemoveClipboardFormatListener,
         };
-        use windows::core::w;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetMessageW,
+            RegisterClassW, TranslateMessage, MSG, WINDOW_EX_STYLE, WM_CLIPBOARDUPDATE, WNDCLASSW,
+            WS_OVERLAPPED,
+        };
 
         if SOURCE_MONITOR_RUNNING
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)
@@ -77,72 +85,94 @@ mod windows_impl {
             return;
         }
 
-        thread::spawn(move || {
-            unsafe {
-                unsafe extern "system" fn wnd_proc(
-                    hwnd: HWND,
-                    msg: u32,
-                    wparam: WPARAM,
-                    lparam: LPARAM,
-                ) -> LRESULT {
-                    if msg == WM_CLIPBOARDUPDATE {
-                        let source = get_clipboard_source_internal();
-                        *CLIPBOARD_SOURCE_CACHE.lock() = Some(source);
-                        return LRESULT(0);
-                    }
-                    DefWindowProcW(hwnd, msg, wparam, lparam)
+        thread::spawn(move || unsafe {
+            SOURCE_MONITOR_THREAD_ID.store(
+                windows::Win32::System::Threading::GetCurrentThreadId(),
+                Ordering::SeqCst,
+            );
+            unsafe extern "system" fn wnd_proc(
+                hwnd: HWND,
+                msg: u32,
+                wparam: WPARAM,
+                lparam: LPARAM,
+            ) -> LRESULT {
+                if msg == WM_CLIPBOARDUPDATE {
+                    let source = get_clipboard_source_internal();
+                    *CLIPBOARD_SOURCE_CACHE.lock() = Some(source);
+                    return LRESULT(0);
                 }
-
-                let class_name = w!("KiroClipboardMonitor");
-                let wc = WNDCLASSW {
-                    lpfnWndProc: Some(wnd_proc),
-                    lpszClassName: class_name,
-                    ..Default::default()
-                };
-
-                if RegisterClassW(&wc) == 0 {
-                    SOURCE_MONITOR_RUNNING.store(false, Ordering::SeqCst);
-                    return;
-                }
-
-                let hwnd = CreateWindowExW(
-                    WINDOW_EX_STYLE(0),
-                    class_name,
-                    w!("Clipboard Monitor"),
-                    WS_OVERLAPPED,
-                    0, 0, 0, 0,
-                    None, None, None, None,
-                );
-
-                let Ok(hwnd) = hwnd else {
-                    SOURCE_MONITOR_RUNNING.store(false, Ordering::SeqCst);
-                    return;
-                };
-
-                if AddClipboardFormatListener(hwnd).is_err() {
-                    SOURCE_MONITOR_RUNNING.store(false, Ordering::SeqCst);
-                    return;
-                }
-
-                let mut msg = MSG::default();
-                while SOURCE_MONITOR_RUNNING.load(Ordering::Relaxed) {
-                    if GetMessageW(&mut msg, Some(hwnd), 0, 0).as_bool() {
-                        let _ = TranslateMessage(&msg);
-                        DispatchMessageW(&msg);
-                    } else {
-                        break;
-                    }
-                }
-
-                let _ = RemoveClipboardFormatListener(hwnd);
-                let _ = DestroyWindow(hwnd);
+                DefWindowProcW(hwnd, msg, wparam, lparam)
             }
+
+            let class_name = w!("KiroClipboardMonitor");
+            let wc = WNDCLASSW {
+                lpfnWndProc: Some(wnd_proc),
+                lpszClassName: class_name,
+                ..Default::default()
+            };
+
+            if RegisterClassW(&wc) == 0 && GetLastError() != ERROR_CLASS_ALREADY_EXISTS {
+                SOURCE_MONITOR_RUNNING.store(false, Ordering::SeqCst);
+                SOURCE_MONITOR_THREAD_ID.store(0, Ordering::SeqCst);
+                return;
+            }
+
+            let hwnd = CreateWindowExW(
+                WINDOW_EX_STYLE(0),
+                class_name,
+                w!("Clipboard Monitor"),
+                WS_OVERLAPPED,
+                0,
+                0,
+                0,
+                0,
+                None,
+                None,
+                None,
+                None,
+            );
+
+            let Ok(hwnd) = hwnd else {
+                SOURCE_MONITOR_RUNNING.store(false, Ordering::SeqCst);
+                SOURCE_MONITOR_THREAD_ID.store(0, Ordering::SeqCst);
+                return;
+            };
+
+            if AddClipboardFormatListener(hwnd).is_err() {
+                SOURCE_MONITOR_RUNNING.store(false, Ordering::SeqCst);
+                SOURCE_MONITOR_THREAD_ID.store(0, Ordering::SeqCst);
+                let _ = DestroyWindow(hwnd);
+                return;
+            }
+
+            let mut msg = MSG::default();
+            while SOURCE_MONITOR_RUNNING.load(Ordering::Relaxed) {
+                if GetMessageW(&mut msg, None, 0, 0).as_bool() {
+                    let _ = TranslateMessage(&msg);
+                    DispatchMessageW(&msg);
+                } else {
+                    break;
+                }
+            }
+
+            let _ = RemoveClipboardFormatListener(hwnd);
+            let _ = DestroyWindow(hwnd);
+            SOURCE_MONITOR_THREAD_ID.store(0, Ordering::SeqCst);
         });
     }
 
     // 停止剪贴板来源监控
     pub fn stop_clipboard_source_monitor() {
+        use windows::Win32::Foundation::{LPARAM, WPARAM};
+        use windows::Win32::UI::WindowsAndMessaging::{PostThreadMessageW, WM_QUIT};
+
         SOURCE_MONITOR_RUNNING.store(false, Ordering::SeqCst);
+        let thread_id = SOURCE_MONITOR_THREAD_ID.load(Ordering::SeqCst);
+        if thread_id != 0 {
+            unsafe {
+                let _ = PostThreadMessageW(thread_id, WM_QUIT, WPARAM(0), LPARAM(0));
+            }
+        }
     }
 
     // 获取剪贴板来源
@@ -164,7 +194,9 @@ mod windows_impl {
             // 首选：剪贴板所有者
             if let Ok(owner) = GetClipboardOwner() {
                 if !owner.is_invalid() && owner.0 as usize != 0 {
-                    if let Some(info) = get_process_info_from_hwnd(owner, ClipboardSourceType::ClipboardOwner) {
+                    if let Some(info) =
+                        get_process_info_from_hwnd(owner, ClipboardSourceType::ClipboardOwner)
+                    {
                         if !info.process_name.is_empty() {
                             return info;
                         }
@@ -175,7 +207,9 @@ mod windows_impl {
             // 备用：前台窗口
             let foreground = GetForegroundWindow();
             if !foreground.is_invalid() && foreground.0 as usize != 0 {
-                if let Some(info) = get_process_info_from_hwnd(foreground, ClipboardSourceType::ForegroundWindow) {
+                if let Some(info) =
+                    get_process_info_from_hwnd(foreground, ClipboardSourceType::ForegroundWindow)
+                {
                     return info;
                 }
             }
@@ -230,29 +264,47 @@ mod windows_impl {
 
     // 通过进程ID获取进程名称
     fn get_process_name_by_id(process_id: u32) -> (String, String) {
-        use windows::Win32::System::Threading::{
-            OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_VM_READ,
-        };
+        use windows::Win32::Foundation::CloseHandle;
         use windows::Win32::System::ProcessStatus::GetModuleFileNameExW;
+        use windows::Win32::System::Threading::{
+            OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_QUERY_LIMITED_INFORMATION,
+            PROCESS_VM_READ,
+        };
 
         unsafe {
-            if let Ok(handle) = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, process_id) {
+            if let Ok(handle) = OpenProcess(
+                PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
+                false,
+                process_id,
+            ) {
                 let mut buffer = [0u16; 260];
                 let len = GetModuleFileNameExW(Some(handle), None, &mut buffer);
-                if len > 0 {
+                let result = if len > 0 {
                     let path = String::from_utf16_lossy(&buffer[..len as usize]);
                     let name = path.split('\\').last().unwrap_or(&path).to_string();
-                    return (path, name);
+                    Some((path, name))
+                } else {
+                    None
+                };
+                let _ = CloseHandle(handle);
+                if let Some(result) = result {
+                    return result;
                 }
             }
 
             if let Ok(handle) = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, process_id) {
                 let mut buffer = [0u16; 260];
                 let len = GetModuleFileNameExW(Some(handle), None, &mut buffer);
-                if len > 0 {
+                let result = if len > 0 {
                     let path = String::from_utf16_lossy(&buffer[..len as usize]);
                     let name = path.split('\\').last().unwrap_or(&path).to_string();
-                    return (path, name);
+                    Some((path, name))
+                } else {
+                    None
+                };
+                let _ = CloseHandle(handle);
+                if let Some(result) = result {
+                    return result;
                 }
             }
 
@@ -262,11 +314,14 @@ mod windows_impl {
 
     // 获取 UWP 应用真实名称
     fn get_uwp_app_name(hwnd: windows::Win32::Foundation::HWND) -> Option<String> {
-        use windows::Win32::UI::WindowsAndMessaging::{EnumChildWindows, GetWindowThreadProcessId};
-        use windows::Win32::Foundation::LPARAM;
-        use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
-        use windows::Win32::System::ProcessStatus::GetModuleFileNameExW;
         use windows::core::BOOL;
+        use windows::Win32::Foundation::CloseHandle;
+        use windows::Win32::Foundation::LPARAM;
+        use windows::Win32::System::ProcessStatus::GetModuleFileNameExW;
+        use windows::Win32::System::Threading::{
+            OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
+        };
+        use windows::Win32::UI::WindowsAndMessaging::{EnumChildWindows, GetWindowThreadProcessId};
 
         struct Context {
             result: Option<String>,
@@ -277,44 +332,70 @@ mod windows_impl {
             let mut parent_pid: u32 = 0;
             GetWindowThreadProcessId(hwnd, Some(&mut parent_pid));
 
-            let mut ctx = Context { result: None, parent_pid };
+            let mut ctx = Context {
+                result: None,
+                parent_pid,
+            };
 
-            unsafe extern "system" fn callback(child: windows::Win32::Foundation::HWND, lparam: LPARAM) -> BOOL {
+            unsafe extern "system" fn callback(
+                child: windows::Win32::Foundation::HWND,
+                lparam: LPARAM,
+            ) -> BOOL {
                 let ctx = &mut *(lparam.0 as *mut Context);
                 let mut child_pid: u32 = 0;
                 GetWindowThreadProcessId(child, Some(&mut child_pid));
 
                 if child_pid > 0 && child_pid != ctx.parent_pid {
-                    if let Ok(handle) = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, child_pid) {
+                    if let Ok(handle) = OpenProcess(
+                        PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,
+                        false,
+                        child_pid,
+                    ) {
                         let mut buffer = [0u16; 260];
                         let len = GetModuleFileNameExW(Some(handle), None, &mut buffer);
-                        if len > 0 {
+                        let result = if len > 0 {
                             let path = String::from_utf16_lossy(&buffer[..len as usize]);
                             let name = path.split('\\').last().unwrap_or(&path).to_string();
-                            if !name.is_empty() && name.to_lowercase() != "applicationframehost.exe" {
-                                ctx.result = Some(name);
-                                return BOOL(0);
+                            if !name.is_empty() && name.to_lowercase() != "applicationframehost.exe"
+                            {
+                                Some(name)
+                            } else {
+                                None
                             }
+                        } else {
+                            None
+                        };
+                        let _ = CloseHandle(handle);
+                        if let Some(name) = result {
+                            ctx.result = Some(name);
+                            return BOOL(0);
                         }
                     }
                 }
                 BOOL(1)
             }
 
-            let _ = EnumChildWindows(Some(hwnd), Some(callback), LPARAM(&mut ctx as *mut _ as isize));
+            let _ = EnumChildWindows(
+                Some(hwnd),
+                Some(callback),
+                LPARAM(&mut ctx as *mut _ as isize),
+            );
             ctx.result
         }
     }
 
     // 获取所有可见窗口信息
     pub fn get_all_windows_info() -> Vec<AppInfo> {
+        use windows::core::BOOL;
+        use windows::Win32::Foundation::CloseHandle;
         use windows::Win32::Foundation::{HWND, LPARAM};
+        use windows::Win32::System::ProcessStatus::GetModuleFileNameExW;
+        use windows::Win32::System::Threading::{
+            OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
+        };
         use windows::Win32::UI::WindowsAndMessaging::{
             EnumWindows, GetWindowTextW, GetWindowThreadProcessId, IsWindowVisible,
         };
-        use windows::Win32::System::Threading::{OpenProcess, PROCESS_QUERY_INFORMATION, PROCESS_VM_READ};
-        use windows::Win32::System::ProcessStatus::GetModuleFileNameExW;
-        use windows::core::BOOL;
 
         let mut windows: Vec<AppInfo> = Vec::new();
 
@@ -331,12 +412,20 @@ mod windows_impl {
                     if title_len > 0 {
                         let title = String::from_utf16_lossy(&title_buf[..title_len as usize]);
                         if !title.trim().is_empty() && title != "Program Manager" {
-                            if let Ok(handle) = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid) {
+                            if let Ok(handle) =
+                                OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid)
+                            {
                                 let mut buf = [0u16; 260];
                                 let len = GetModuleFileNameExW(Some(handle), None, &mut buf);
-                                if len > 0 {
+                                let result = if len > 0 {
                                     let path = String::from_utf16_lossy(&buf[..len as usize]);
                                     let name = path.split('\\').last().unwrap_or(&path).to_string();
+                                    Some((name, path))
+                                } else {
+                                    None
+                                };
+                                let _ = CloseHandle(handle);
+                                if let Some((name, path)) = result {
                                     windows.push(AppInfo {
                                         name: title,
                                         process: name,
@@ -368,7 +457,9 @@ pub fn get_clipboard_source() -> ClipboardSourceInfo {
     match get_active_window() {
         Ok(win) => {
             let path = win.process_path.to_string_lossy().to_string();
-            let name = win.process_path.file_name()
+            let name = win
+                .process_path
+                .file_name()
                 .and_then(|n| n.to_str())
                 .unwrap_or("")
                 .to_string();
@@ -395,9 +486,7 @@ pub fn get_all_windows_info() -> Vec<AppInfo> {
 
 #[cfg(target_os = "windows")]
 pub use windows_impl::{
-    get_all_windows_info,
-    get_clipboard_source,
-    start_clipboard_source_monitor,
+    get_all_windows_info, get_clipboard_source, start_clipboard_source_monitor,
     stop_clipboard_source_monitor,
 };
 
@@ -467,7 +556,12 @@ pub fn is_front_app_globally_disabled(
     };
 
     app_filter_blocklist.iter().any(|f| {
-        matches_filter_rule_text(&info.process_name, &info.window_title, &info.process_path, f)
+        matches_filter_rule_text(
+            &info.process_name,
+            &info.window_title,
+            &info.process_path,
+            f,
+        )
     })
 }
 
@@ -481,10 +575,7 @@ pub fn is_front_app_globally_disabled_from_settings() -> bool {
 }
 
 // 检查当前应用是否允许记录剪贴板
-pub fn is_current_app_allowed(
-    app_filter_enabled: bool,
-    app_filter_blocklist: &[String],
-) -> bool {
+pub fn is_current_app_allowed(app_filter_enabled: bool, app_filter_blocklist: &[String]) -> bool {
     if !app_filter_enabled {
         return true;
     }
@@ -495,7 +586,9 @@ pub fn is_current_app_allowed(
         return true;
     }
 
-    !app_filter_blocklist.iter().any(|f| matches_filter_rule(&source, f))
+    !app_filter_blocklist
+        .iter()
+        .any(|f| matches_filter_rule(&source, f))
 }
 
 #[cfg(test)]

@@ -1,7 +1,7 @@
 use fltk::{
     app,
-    draw,
     app::MouseWheel,
+    draw,
     enums::Damage,
     enums::{Align, Color, Event, Font, FrameType, Key},
     frame::Frame,
@@ -16,8 +16,7 @@ use std::{
     rc::Rc,
     sync::{
         atomic::{AtomicBool, Ordering},
-        mpsc,
-        Arc, Mutex,
+        mpsc, Arc, Mutex,
     },
     time::Duration,
 };
@@ -112,9 +111,7 @@ const BADGE_FONT_SIZE: i32 = 11;
 const PAGE_POPUP_MARGIN: i32 = 6;
 
 pub fn preferred_height(item_count: usize) -> i32 {
-    item_count
-        .clamp(MIN_VISIBLE_ROWS as usize, MAX_VISIBLE_ROWS as usize) as i32
-        * ROW_HEIGHT
+    item_count.clamp(MIN_VISIBLE_ROWS as usize, MAX_VISIBLE_ROWS as usize) as i32 * ROW_HEIGHT
         + FOOTER_HEIGHT
         + CONTENT_TOP_PADDING
         + WINDOW_BORDER_WIDTH * 2
@@ -214,7 +211,8 @@ where
         let _ = ready_tx.send(sender);
 
         let table_state: Rc<RefCell<TableState>> = Rc::new(RefCell::new(TableState::default()));
-        let page_popup_state: Rc<RefCell<PagePopupState>> = Rc::new(RefCell::new(PagePopupState::default()));
+        let page_popup_state: Rc<RefCell<PagePopupState>> =
+            Rc::new(RefCell::new(PagePopupState::default()));
         let theme_state: Rc<RefCell<ThemeColors>> = Rc::new(RefCell::new(ThemeColors {
             window_bg: (255, 255, 255),
             panel_bg: (243, 244, 246),
@@ -744,20 +742,14 @@ pub fn contains_point(x: i32, y: i32) -> bool {
 }
 
 #[cfg(target_os = "windows")]
-fn apply_physical_bounds(
-    window: &DoubleWindow,
-    x: i32,
-    y: i32,
-    width: i32,
-    height: i32,
-) {
+fn apply_physical_bounds(window: &DoubleWindow, x: i32, y: i32, width: i32, height: i32) {
     use windows::Win32::Foundation::HWND;
     use windows::Win32::Graphics::Dwm::{
         DwmSetWindowAttribute, DWMWA_WINDOW_CORNER_PREFERENCE, DWM_WINDOW_CORNER_PREFERENCE,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
-        MoveWindow, SetWindowPos, HWND_NOTOPMOST, HWND_TOPMOST, SWP_NOMOVE, SWP_NOSIZE,
-        SWP_NOACTIVATE, SWP_SHOWWINDOW,
+        MoveWindow, SetWindowPos, HWND_NOTOPMOST, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE,
+        SWP_NOSIZE, SWP_SHOWWINDOW,
     };
 
     let hwnd = HWND(window.raw_handle());
@@ -796,14 +788,7 @@ fn apply_physical_bounds(
 }
 
 #[cfg(not(target_os = "windows"))]
-fn apply_physical_bounds(
-    _window: &DoubleWindow,
-    _x: i32,
-    _y: i32,
-    _width: i32,
-    _height: i32,
-) {
-}
+fn apply_physical_bounds(_window: &DoubleWindow, _x: i32, _y: i32, _width: i32, _height: i32) {}
 
 fn redraw_row(table: &mut TableRow, row: Option<i32>) {
     let Some(row) = row else {

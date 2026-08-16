@@ -22,7 +22,12 @@ pub struct PairedPeerInfo {
 }
 
 impl PairedPeer {
-    pub fn new(device_id: String, device_name: String, base_url: String, peer_token: String) -> Self {
+    pub fn new(
+        device_id: String,
+        device_name: String,
+        base_url: String,
+        peer_token: String,
+    ) -> Self {
         Self {
             device_id,
             device_name,
@@ -45,7 +50,8 @@ impl PairedPeer {
 }
 
 pub fn list_peers() -> Vec<PairedPeer> {
-    let peers = crate::services::store::get::<Vec<PairedPeer>>(PAIRED_PEERS_KEY).unwrap_or_default();
+    let peers =
+        crate::services::store::get::<Vec<PairedPeer>>(PAIRED_PEERS_KEY).unwrap_or_default();
     let original_len = peers.len();
     let peers = dedupe_peers(peers);
     if peers.len() != original_len {

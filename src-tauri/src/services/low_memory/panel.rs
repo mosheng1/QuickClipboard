@@ -165,8 +165,11 @@ fn rebuild_position_from_existing(
     height_logical: i32,
 ) -> Result<PanelPosition, String> {
     let app = crate::utils::screen::get_app_handle().ok_or("APP_HANDLE 未初始化")?;
-    let scale_factor =
-        crate::screen::ScreenUtils::get_scale_factor_at_point(app, previous.physical_x, previous.physical_y);
+    let scale_factor = crate::screen::ScreenUtils::get_scale_factor_at_point(
+        app,
+        previous.physical_x,
+        previous.physical_y,
+    );
     let physical_width = (PANEL_WIDTH_LOGICAL as f64 * scale_factor).round() as i32;
     let physical_height = (height_logical as f64 * scale_factor).round() as i32;
     let (physical_x, physical_y) = crate::screen::ScreenUtils::constrain_to_physical_bounds(
@@ -347,7 +350,12 @@ fn build_page_items(total_pages: i64, total_count: i64) -> Vec<PageItem> {
 
         items.push(PageItem {
             page_index,
-            label: format!("第 {} 页 · {}-{} 条", page_index + 1, range_start, range_end),
+            label: format!(
+                "第 {} 页 · {}-{} 条",
+                page_index + 1,
+                range_start,
+                range_end
+            ),
         });
     }
 
@@ -401,10 +409,18 @@ fn parse_files_content(content: &str) -> Option<Vec<String>> {
 
     let names: Vec<String> = files
         .iter()
-        .filter_map(|file| file.get("name").and_then(|name| name.as_str()).map(|name| name.to_string()))
+        .filter_map(|file| {
+            file.get("name")
+                .and_then(|name| name.as_str())
+                .map(|name| name.to_string())
+        })
         .collect();
 
-    if names.is_empty() { None } else { Some(names) }
+    if names.is_empty() {
+        None
+    } else {
+        Some(names)
+    }
 }
 
 fn summarize_named_items(names: &[String], unit: &str) -> String {
@@ -439,11 +455,7 @@ fn format_item_label(item: &crate::services::database::ClipboardItem) -> String 
             if let Some(names) = parse_files_content(&item.content) {
                 summarize_named_items(&names, "个文件")
             } else {
-                let filename = item
-                    .content
-                    .split(['/', '\\'])
-                    .last()
-                    .unwrap_or("文件");
+                let filename = item.content.split(['/', '\\']).last().unwrap_or("文件");
                 summarize_text(filename)
             }
         }
@@ -545,11 +557,12 @@ fn blend_rgba(base: (u8, u8, u8), overlay: (u8, u8, u8, u8)) -> (u8, u8, u8) {
 
 #[cfg(target_os = "windows")]
 fn is_system_dark_mode() -> bool {
-    use winreg::RegKey;
     use winreg::enums::HKEY_CURRENT_USER;
+    use winreg::RegKey;
 
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
-    let personalize = hkcu.open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize");
+    let personalize =
+        hkcu.open_subkey("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize");
     let Ok(key) = personalize else {
         return false;
     };

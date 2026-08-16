@@ -127,28 +127,6 @@ export async function addToFavorites(id) {
   }
 }
 
-
-// 检查文件是否存在
-export async function checkFileExists(path) {
-  try {
-    return await invoke('file_exists', { path })
-  } catch (error) {
-    console.warn(`检查文件是否存在失败: ${path}`, error)
-    return false
-  }
-}
-
-// 打开文本编辑器
-export async function openTextEditor() {
-  try {
-    await invoke('open_text_editor_window')
-    return true
-  } catch (error) {
-    console.error('打开文本编辑器失败:', error)
-    throw error
-  }
-}
-
 // 贴图片到屏幕
 export async function pinImageToScreen(filePath) {
   try {
@@ -159,18 +137,6 @@ export async function pinImageToScreen(filePath) {
     throw error
   }
 }
-
-// 保存图片到文件
-export async function saveImageToFile(content, filePath) {
-  try {
-    await invoke('save_image_to_file', { content, filePath })
-    return true
-  } catch (error) {
-    console.error('保存图片失败:', error)
-    throw error
-  }
-}
-
 
 // 获取单个剪贴板项
 export async function getClipboardItemById(id, maxLength = null) {
@@ -228,7 +194,6 @@ export async function addClipboardToFavorites(id, groupName) {
   })
   return favoriteItem
 }
-
 
 // 另存图片
 export async function saveImageFromPath(filePath) {
