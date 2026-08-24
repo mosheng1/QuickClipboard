@@ -431,11 +431,21 @@ pub fn query_favorites(
         }
 
         if let Some(content_type) = params.content_type {
-            if content_type != "all" {
-                let pattern = format!("%{}%", content_type);
-                where_clauses.push("content_type LIKE ?");
-                count_params.push(Box::new(pattern.clone()));
-                query_params.push(Box::new(pattern));
+            let types: Vec<_> = content_type.split(',').map(str::trim).filter(|t| !t.is_empty()).collect();
+            if !types.is_empty() && content_type != "all" {
+                let clauses = types.iter().map(|_| "content_type LIKE ?").collect::<Vec<_>>().join(" OR ");
+                where_clauses.push(Box::leak(format!("({})", clauses).into_boxed_str()));
+                for content_type in types {
+                    let pattern = format!("%{}%", content_type);
+                    count_params.push(Box::new(pattern.clone()));
+                    query_params.push(Box::new(pattern));
+                }
+            }
+        }
+        if let Some(ref paste_status) = params.paste_status {
+            let statuses: Vec<_> = paste_status.split(',').map(str::trim).filter(|status| *status == "pasted" || *status == "unpasted").collect();
+            if statuses.len() == 1 {
+                where_clauses.push(if statuses[0] == "pasted" { "paste_count > 0" } else { "paste_count = 0" });
             }
         }
 

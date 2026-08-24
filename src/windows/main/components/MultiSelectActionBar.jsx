@@ -11,12 +11,10 @@ import {
   addClipboardToFavorites,
   deleteClipboardItems,
   mergeCopyClipboardItems,
-  mergePasteClipboardItems,
 } from "@shared/api/clipboard";
 import {
   deleteFavoriteItems,
   mergeCopyFavoriteItems,
-  mergePasteFavoriteItems,
 } from "@shared/api/favorites";
 import { moveFavoriteToGroup } from "@shared/api/groups";
 import {
@@ -25,7 +23,7 @@ import {
   showContextMenu,
 } from "@/plugins/context_menu/index.js";
 import { toast, TOAST_POSITIONS, TOAST_SIZES } from "@shared/store/toastStore";
-import { getSelectionMergeState } from "../utils/multiSelect";
+import { getSelectionMergeState, mergePasteSelectedItems } from "../utils/multiSelect";
 function MultiSelectActionBar({ activeTab }) {
   const { t } = useTranslation();
   const clipboardSnap = useSnapshot(clipboardStore);
@@ -55,7 +53,7 @@ function MultiSelectActionBar({ activeTab }) {
   const makeActionButtonClasses = (disabled) =>
     `
     flex items-center justify-center
-    w-8 h-8
+    w-7 h-7
     rounded-md border
     transition-colors duration-200
     ${disabled ? "cursor-not-allowed border-qc-border bg-qc-panel text-qc-fg-subtle opacity-60" : "border-qc-border bg-qc-panel text-qc-fg-muted hover:bg-qc-hover hover:text-qc-fg"}
@@ -83,13 +81,9 @@ function MultiSelectActionBar({ activeTab }) {
   const handleMergePaste = async () => {
     if (!selectedCount || !mergeState.canMerge) return;
     try {
-      if (activeTab === "clipboard") {
-        await mergePasteClipboardItems(selectedIds);
-      } else {
-        await mergePasteFavoriteItems(selectedIds);
+      if (await mergePasteSelectedItems(activeTab)) {
+        toast.success(t("multiSelect.mergePasted"), withToastConfig);
       }
-      currentStore.exitMultiSelectMode();
-      toast.success(t("multiSelect.mergePasted"), withToastConfig);
     } catch (error) {
       console.error("合并粘贴失败:", error);
       toast.error(error?.message || t("common.pasteFailed"), withToastConfig);
@@ -189,15 +183,20 @@ function MultiSelectActionBar({ activeTab }) {
     }
   };
   return (
-    <div className="multi-select-action-bar flex-shrink-0 h-11 px-3 border-t border-qc-border bg-qc-panel backdrop-blur-sm rounded-bl-[8px] rounded-br-[8px]">
-      <div className="h-full flex items-center justify-between gap-3">
-        <div className="text-sm font-medium text-qc-fg">
-          {t("multiSelect.selectedCount", {
-            count: selectedCount,
-          })}
+    <div className="multi-select-action-bar flex-shrink-0 h-9 px-2 border-t border-qc-border bg-qc-panel backdrop-blur-sm rounded-bl-[8px] rounded-br-[8px]">
+      <div className="h-full flex items-center justify-between gap-2">
+        <div className="flex min-w-0 flex-col items-start leading-tight">
+          <div className="whitespace-nowrap text-xs font-medium text-qc-fg">
+            {t("multiSelect.selectedLabel")}{" "}
+            <span className="font-semibold text-blue-500">{selectedCount}</span>{" "}
+            {t("multiSelect.selectedUnit")}
+          </div>
+          <div className="mt-0.5 whitespace-nowrap text-[10px] font-normal text-qc-fg-subtle">
+            {t("multiSelect.operationHint")}
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <Tooltip
             content={
               !selectedCount
@@ -219,7 +218,7 @@ function MultiSelectActionBar({ activeTab }) {
               <i
                 className="ti ti-copy"
                 style={{
-                  fontSize: 15,
+                  fontSize: 14,
                 }}
               ></i>
             </button>
@@ -246,7 +245,7 @@ function MultiSelectActionBar({ activeTab }) {
               <i
                 className="ti ti-clipboard-list"
                 style={{
-                  fontSize: 15,
+                  fontSize: 14,
                 }}
               ></i>
             </button>
@@ -275,7 +274,7 @@ function MultiSelectActionBar({ activeTab }) {
                     : "ti ti-folder-share"
                 }
                 style={{
-                  fontSize: 15,
+                  fontSize: 14,
                 }}
               ></i>
             </button>
@@ -298,7 +297,7 @@ function MultiSelectActionBar({ activeTab }) {
               <i
                 className="ti ti-trash"
                 style={{
-                  fontSize: 15,
+                  fontSize: 14,
                 }}
               ></i>
             </button>
@@ -312,7 +311,7 @@ function MultiSelectActionBar({ activeTab }) {
               <i
                 className="ti ti-x"
                 style={{
-                  fontSize: 15,
+                  fontSize: 14,
                 }}
               ></i>
             </button>

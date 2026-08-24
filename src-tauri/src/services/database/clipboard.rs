@@ -208,8 +208,15 @@ pub fn query_clipboard_items(
             .content_type
             .as_ref()
             .map(|t| t != "all")
+            .unwrap_or(false)
+        || params
+            .paste_status
+            .as_ref()
+            .map(|s| {
+                s.split(',')
+                    .any(|v| v.trim() == "pasted" || v.trim() == "unpasted")
+            })
             .unwrap_or(false);
-
     with_connection(|conn| {
         let mut where_clauses = vec![];
         let mut query_params: Vec<Box<dyn rusqlite::ToSql>> = vec![];
@@ -223,10 +230,20 @@ pub fn query_clipboard_items(
         }
 
         if let Some(ref content_type) = params.content_type {
-            if content_type != "all" {
-                where_clauses.push("content_type LIKE ?");
-                let pattern = format!("%{}%", content_type);
-                query_params.push(Box::new(pattern));
+            let types: Vec<_> = content_type.split(',').map(str::trim).filter(|t| !t.is_empty()).collect();
+            if !types.is_empty() && content_type != "all" {
+                let clauses = types.iter().map(|_| "content_type LIKE ?").collect::<Vec<_>>().join(" OR ");
+                where_clauses.push(Box::leak(format!("({})", clauses).into_boxed_str()));
+                for content_type in types {
+                    let pattern = if content_type == "text" { "%text%".to_string() } else { format!("%{}%", content_type) };
+                    query_params.push(Box::new(pattern));
+                }
+            }
+        }
+        if let Some(ref paste_status) = params.paste_status {
+            let statuses: Vec<_> = paste_status.split(',').map(str::trim).filter(|status| *status == "pasted" || *status == "unpasted").collect();
+            if statuses.len() == 1 {
+                where_clauses.push(if statuses[0] == "pasted" { "paste_count > 0" } else { "paste_count = 0" });
             }
         }
 

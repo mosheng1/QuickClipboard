@@ -13,6 +13,7 @@ static NAVIGATION_SHORTCUTS: Lazy<Mutex<Vec<NavigationShortcutRegistration>>> =
 static NAVIGATION_HOTKEYS_LIFECYCLE_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 static NAVIGATION_HOTKEYS_DESIRED: AtomicBool = AtomicBool::new(false);
 static NAVIGATION_HOTKEYS_REGISTERED: AtomicBool = AtomicBool::new(false);
+static EXECUTE_ITEM_HOTKEY_SUSPENDED: AtomicBool = AtomicBool::new(false);
 static NAVIGATION_REPEAT_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 static NAVIGATION_THROTTLE_STATE: Lazy<Mutex<HashMap<String, Instant>>> =
@@ -44,6 +45,24 @@ pub fn enable_navigation_hotkeys() {
 pub fn disable_navigation_hotkeys() {
     NAVIGATION_HOTKEYS_DESIRED.store(false, Ordering::SeqCst);
     unregister_navigation_hotkeys();
+}
+
+// 输入框获得焦点时暂停执行粘贴快捷键，避免全局 Enter 抢占输入法组合提交。
+pub fn suspend_execute_item_hotkey() {
+    if EXECUTE_ITEM_HOTKEY_SUSPENDED.swap(true, Ordering::SeqCst) {
+        return;
+    }
+
+    reload_navigation_hotkeys_from_settings();
+}
+
+// 输入框失去焦点时恢复执行粘贴快捷键。
+pub fn resume_execute_item_hotkey() {
+    if !EXECUTE_ITEM_HOTKEY_SUSPENDED.swap(false, Ordering::SeqCst) {
+        return;
+    }
+
+    reload_navigation_hotkeys_from_settings();
 }
 
 pub fn sync_navigation_hotkeys_for_foreground() {
@@ -99,6 +118,12 @@ fn register_navigation_hotkeys_from_settings_locked() -> Result<(), String> {
 
     for config in configs {
         if config.shortcut.trim().is_empty() {
+            continue;
+        }
+
+        if config.id == "navigation_execute_item"
+            && EXECUTE_ITEM_HOTKEY_SUSPENDED.load(Ordering::SeqCst)
+        {
             continue;
         }
 

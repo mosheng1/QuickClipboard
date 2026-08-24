@@ -27,6 +27,22 @@ function ClipboardSection({
     value: 'shift_insert',
     label: t('settings.clipboard.pasteShortcutShiftInsert')
   }];
+  const leftClickActionOptions = [{
+    value: 'none',
+    label: t('settings.clipboard.leftClickActionNone')
+  }, {
+    value: 'single_paste',
+    label: t('settings.clipboard.leftClickActionSinglePaste')
+  }, {
+    value: 'single_copy',
+    label: t('settings.clipboard.leftClickActionSingleCopy')
+  }, {
+    value: 'double_paste',
+    label: t('settings.clipboard.leftClickActionDoublePaste')
+  }, {
+    value: 'double_copy',
+    label: t('settings.clipboard.leftClickActionDoubleCopy')
+  }];
   const displayPriorityOptions = [{
     value: 'text,html,image',
     label: t('settings.clipboard.displayPriorityTextHtmlImage')
@@ -73,6 +89,10 @@ function ClipboardSection({
       <SettingsSection title={t('settings.clipboard.title')} description={t('settings.clipboard.description')}>
         <SettingItem label={t('settings.clipboard.monitor')} description={t('settings.clipboard.monitorDesc')}>
           <Toggle checked={settings.clipboardMonitor} onChange={checked => onSettingChange('clipboardMonitor', checked)} />
+        </SettingItem>
+
+        <SettingItem label={t('settings.clipboard.leftClickAction')} description={t('settings.clipboard.leftClickActionDesc')}>
+          <Select value={settings.leftClickAction || 'single_paste'} onChange={value => onSettingChange('leftClickAction', value)} options={leftClickActionOptions} className="w-48" />
         </SettingItem>
 
         <SettingItem label={t('settings.clipboard.saveImages')} description={t('settings.clipboard.saveImagesDesc')}>

@@ -94,7 +94,7 @@ function FileContent({
     const iconSize = isXSmallHeight ? 18 : compact ? 29 : settings.rowHeight === 'large' ? 80 : settings.rowHeight === 'auto' ? 48 : 50;
     const itemSize = isXSmallHeight ? 22 : compact ? 33 : settings.rowHeight === 'large' ? 84 : settings.rowHeight === 'auto' ? 52 : 54;
     const gap = isXSmallHeight ? '0.125rem' : compact ? '0.25rem' : settings.rowHeight === 'large' || settings.rowHeight === 'auto' ? '0.5rem' : '0.375rem';
-    return <div data-drag-ignore="true" className={`w-full overflow-y-auto ${isAutoHeight ? '' : 'h-full'}`} style={autoMaxHeightStyle}>
+    return <div className={`w-full overflow-y-auto ${isAutoHeight ? '' : 'h-full'}`} style={autoMaxHeightStyle}>
       <div className="w-full flex flex-wrap" style={{
         gap
       }}>
@@ -191,7 +191,7 @@ function FileContent({
 
   // 正常模式
   const normalIconSize = settings.rowHeight === 'large' || settings.rowHeight === 'auto' ? 48 : 36;
-  return <div data-drag-ignore="true" className={`w-full overflow-y-auto space-y-1 pr-1 ${isAutoHeight ? '' : 'h-full'}`} style={autoMaxHeightStyle}>
+  return <div className={`w-full overflow-y-auto space-y-1 pr-1 ${isAutoHeight ? '' : 'h-full'}`} style={autoMaxHeightStyle}>
     {/* 文件列表 */}
     {filesData.files.map((file, index) => {
       const exists = file.exists !== false;

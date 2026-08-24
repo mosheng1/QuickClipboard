@@ -2,7 +2,6 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import UnoCSS from 'unocss/vite'
 import { resolve } from 'path'
-import wasm from 'vite-plugin-wasm'
 
 const isDev = process.env.NODE_ENV === 'development'
 const isTauriDebug = process.env.TAURI_DEBUG === 'true'
@@ -47,7 +46,6 @@ export default defineConfig({
         ],
       },
     }),
-    wasm(),
   ],
 
   build: {

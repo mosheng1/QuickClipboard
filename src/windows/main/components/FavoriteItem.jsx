@@ -4,11 +4,10 @@ import '@tabler/icons-webfont/dist/tabler-icons.min.css';
 import { pasteFavorite, refreshFavorites } from '@shared/store/favoritesStore';
 import { ROW_HEIGHT_CONFIG, useItemCommon } from '@shared/hooks/useItemCommon.jsx';
 import { useSortable, CSS } from '@shared/hooks/useSortable';
-import { useDragWithThreshold } from '@shared/hooks/useDragWithThreshold';
 import { useSnapshot } from 'valtio';
 import { groupsStore } from '@shared/store/groupsStore';
 import { showFavoriteItemContextMenu } from '@shared/utils/contextMenu';
-import { createDragPreviewIcon, createImagesDragPreviewIcon } from '@shared/utils/dragPreviewIcon';
+import { getExternalDragInfo } from '@shared/utils/externalDragInfo';
 import { getPrimaryType } from '@shared/utils/contentType';
 import { useTranslation } from 'react-i18next';
 import { deleteFavorite } from '@shared/store/favoritesStore';
@@ -32,6 +31,7 @@ import {
   PREVIEW_MODE_FILE,
 } from '@shared/utils/pasteFormatHints';
 import SimpleInputDialog from './SimpleInputDialog';
+import logoIcon from '@/assets/icon1024.png';
 
 const PREVIEW_HOVER_DELAY_MS = 120;
 const favoriteFormatKindsCache = new Map();
@@ -58,12 +58,14 @@ function FavoriteItem({
   isDraggable = true,
   isSelected = false,
   isMultiSelected = false,
+  selectionNumber,
   isMultiSelectMode = false,
   onHover,
   onClick,
   isDragActive = false,
   showIndex = true,
-  animationDelay = 0
+  animationDelay = 0,
+  onPrepareExternalDrag
 }) {
   const {
     t
@@ -93,8 +95,6 @@ function FavoriteItem({
     }
     return false;
   })();
-  const sortTooltipContent = t('clipboard.dragSortOnlyRight', '拖拽排序');
-  const [showDragSideTooltips, setShowDragSideTooltips] = useState(false);
   const [formatKinds, setFormatKinds] = useState(() => extractFormatKinds([], item));
   const formatKindsLoadedRef = useRef(false);
   const previewTimerRef = useRef(null);
@@ -112,73 +112,12 @@ function FavoriteItem({
     }
   })();
 
-  // 外部拖拽信息：用于“左侧外部拖拽”Tooltip + 左侧实际触发 startDrag。
-  const externalDragInfo = (() => {
-    if (!isImageOrFileType) {
-      return { paths: [], iconPath: null, tooltipContent: undefined };
-    }
+  // 外部拖拽信息：列表拖至窗口边缘时由父组件切换为系统拖拽。
+  const externalDragInfo = getExternalDragInfo(item, renderType, t, logoIcon, 'favorite');
 
-    if (isImageType) {
-      if (!item.content?.startsWith('files:')) {
-        return { paths: [], iconPath: null, tooltipContent: undefined };
-      }
-      try {
-        const filesData = JSON.parse(item.content.substring(6));
-        const first = filesData?.files?.[0];
-        if (!first || first.exists === false) {
-          return { paths: [], iconPath: null, tooltipContent: undefined };
-        }
-        const actualPath = first.actual_path || first.path;
-        if (!actualPath) {
-          return { paths: [], iconPath: null, tooltipContent: undefined };
-        }
-        return {
-          paths: [actualPath],
-          iconPath: ({ paths }) => createImagesDragPreviewIcon(paths),
-          tooltipContent: t('clipboard.dragImageToExternal', '拖拽到外部应用'),
-        };
-      } catch {
-        return { paths: [], iconPath: null, tooltipContent: undefined };
-      }
-    }
-
-    if (isFileType) {
-      if (!item.content?.startsWith('files:')) {
-        return { paths: [], iconPath: null, tooltipContent: undefined };
-      }
-      try {
-        const filesData = JSON.parse(item.content.substring(6));
-        const draggableFiles = filesData.files?.filter(f => f.exists !== false && f.path) || [];
-        const draggablePaths = draggableFiles.map(f => f.path);
-        if (!draggablePaths.length) {
-          return { paths: [], iconPath: null, tooltipContent: undefined };
-        }
-        const previewIcon = draggableFiles.find(f => f.icon_data)?.icon_data || '';
-        const tooltipContent = draggablePaths.length > 1
-          ? t('clipboard.dragFilesToExternal', '拖拽到外部应用（共{{count}}个文件）', { count: draggablePaths.length })
-          : t('clipboard.dragFileToExternal', '拖拽到外部应用');
-        return {
-          paths: draggablePaths,
-          iconPath: ({ paths, mode }) => createDragPreviewIcon(previewIcon, paths.length, mode, {
-            copy: t('common.copy', '复制'),
-            move: t('transferShelf.move', '移动'),
-          }) || paths[0],
-          tooltipContent,
-        };
-      } catch {
-        return { paths: [], iconPath: null, tooltipContent: undefined };
-      }
-    }
-
-    return { paths: [], iconPath: null, tooltipContent: undefined };
-  })();
-
-  const externalDragTooltipContent = externalDragInfo.tooltipContent;
   const externalDragPaths = externalDragInfo.paths;
   const externalDragIconPath = externalDragInfo.iconPath;
-  const canExternalDrag = externalDragPaths.length > 0;
-  const dragZoneHalfWidth = '50%';
-  const sortDragZoneRightInset = isFileType ? '12px' : 0;
+  const canExternalDrag = externalDragInfo.canDrag || externalDragPaths.length > 0;
   const itemRootRef = useRef(null);
   const closeHoverPreview = useCallback(() => {
     if (previewTimerRef.current) {
@@ -212,14 +151,6 @@ function FavoriteItem({
     }, PREVIEW_HOVER_DELAY_MS);
   }, [closeHoverPreview, getPreviewAnchorRect, item.id, previewEnabled, previewMode]);
 
-  const handleExternalDragMouseDown = useDragWithThreshold({
-    onDragStart: () => {
-      if (previewEnabled) {
-        closeHoverPreview();
-      }
-    }
-  });
-
   const isPasted = item.paste_count > 0;
 
   // 拖拽开始时关闭预览
@@ -234,10 +165,7 @@ function FavoriteItem({
       return;
     }
     closeHoverPreview();
-    if (isImageOrFileType) {
-      setShowDragSideTooltips(false);
-    }
-  }, [closeHoverPreview, isImageOrFileType, isMultiSelectMode]);
+  }, [closeHoverPreview, isMultiSelectMode]);
 
   useEffect(() => {
     setFormatKinds(extractFormatKinds([], item));
@@ -297,7 +225,14 @@ function FavoriteItem({
     isDragging
   } = useSortable({
     id: sortId,
-    disabled: !isDraggable
+    disabled: !isDraggable,
+    data: {
+      externalDrag: canExternalDrag ? {
+        item: externalDragInfo.item || externalDragPaths,
+        textSource: externalDragInfo.textSource,
+        iconPath: externalDragIconPath,
+      } : null,
+    },
   });
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -330,9 +265,6 @@ function FavoriteItem({
       return;
     }
     ensureFormatKindsLoaded();
-    if (isImageOrFileType) {
-      setShowDragSideTooltips(true);
-    }
     if (onHover) {
       onHover();
     }
@@ -347,10 +279,7 @@ function FavoriteItem({
       return;
     }
     closeHoverPreview();
-    if (isImageOrFileType) {
-      setShowDragSideTooltips(false);
-    }
-  }, [closeHoverPreview, isImageOrFileType, isMultiSelectMode]);
+  }, [closeHoverPreview, isMultiSelectMode]);
 
   const handlePreviewWheel = useCallback((e) => {
     if (isMultiSelectMode || !e.ctrlKey || !previewMode || !previewEnabled) {
@@ -484,22 +413,17 @@ function FavoriteItem({
   // 键盘选中样式
   const isActiveSelected = isMultiSelectMode ? isMultiSelected : isSelected;
   const baseSurfaceClasses = isBackground ? 'bg-qc-panel' : 'bg-transparent';
-  const shouldShowDragOutlineOnly = isImageOrFileType && showDragSideTooltips;
   const gaplessDividerClasses = 'border-b border-transparent';
   const selectedClasses = isCardStyle
     ? (
-      shouldShowDragOutlineOnly
-        ? baseSurfaceClasses
-        : isActiveSelected
-          ? `${baseSurfaceClasses} ring-2 ring-blue-500 ring-inset`
-          : `${baseSurfaceClasses} ring-1 ring-qc-border ring-inset shadow-sm shadow-black/5`
+      isActiveSelected
+        ? `${baseSurfaceClasses} ring-2 ring-blue-500 ring-inset`
+        : `${baseSurfaceClasses} ring-1 ring-qc-border ring-inset shadow-sm shadow-black/5`
     )
     : (
-      shouldShowDragOutlineOnly
-        ? `${baseSurfaceClasses} ${gaplessDividerClasses}`
-        : isActiveSelected
-          ? `${baseSurfaceClasses} ${gaplessDividerClasses} ring-2 ring-blue-500 ring-inset`
-          : `${baseSurfaceClasses} border-b border-qc-border`
+      isActiveSelected
+        ? `${baseSurfaceClasses} ${gaplessDividerClasses} ring-2 ring-blue-500 ring-inset`
+        : `${baseSurfaceClasses} border-b border-qc-border`
     );
   const smallElementClasses = `
     flex items-center justify-center
@@ -584,9 +508,14 @@ function FavoriteItem({
         itemRootRef.current = node;
       }}
       style={{ ...style, ...animationStyle }}
-      {...(isImageOrFileType || !isDraggable ? {} : attributes)}
-      {...(isImageOrFileType || !isDraggable ? {} : listeners)}
+      {...(isDraggable ? attributes : {})}
+      {...(isDraggable ? listeners : {})}
       data-index={index}
+      onMouseDownCapture={(event) => {
+        if (event.button === 0 && canExternalDrag) {
+          onPrepareExternalDrag?.(sortId, externalDragInfo);
+        }
+      }}
       className={`favorite-item group relative flex flex-col ${isMultiSelectMode ? 'pl-9 pr-2.5' : 'px-2.5'} py-2 ${selectedClasses} ${isCardStyle ? 'rounded-md' : ''} ${isDraggable ? 'cursor-move' : 'cursor-pointer'} transition-all ${settings.uiAnimationEnabled !== false ? 'hover:translate-y-[-3px]' : 'no-animation'} ${getHeightClass()}`}
       onClick={handleClick}
       onContextMenu={handleContextMenu}
@@ -601,67 +530,9 @@ function FavoriteItem({
               ? 'border-blue-500 bg-blue-500 text-white'
               : 'border-qc-border bg-qc-panel text-transparent'
           }`}>
-            <i className="ti ti-check" style={{ fontSize: 12 }}></i>
+            {selectionNumber}
           </span>
         </div>
-      )}
-      {isImageOrFileType && !isMultiSelectMode && isDraggable && (
-        <>
-          {/* 拖拽分区提示：悬停时仅显示左右虚线分区 */}
-          {showDragSideTooltips && (
-            <>
-              <div
-                className={`absolute top-0 left-0 h-full border-2 border-dashed border-r-0 border-amber-400/70 z-[22] pointer-events-none ${isCardStyle ? 'rounded-l-md rounded-r-none' : ''}`}
-                style={{
-                  width: dragZoneHalfWidth
-                }}
-              />
-              <div
-                className={`absolute top-0 right-0 h-full border-2 border-dashed border-l-0 border-blue-400/70 z-[23] pointer-events-none ${isCardStyle ? 'rounded-r-md rounded-l-none' : ''}`}
-                style={{
-                  width: dragZoneHalfWidth
-                }}
-              />
-              <div
-                className="absolute top-1 bottom-1 left-1/2 -translate-x-1/2 border-l border-dashed border-qc-border/50 z-[24] pointer-events-none"
-              />
-            </>
-          )}
-
-          {/* 左侧：拖拽到外部应用 */}
-          {externalDragTooltipContent && (
-            <Tooltip
-              content={externalDragTooltipContent}
-              placement="top"
-              asChild
-              forceOpen={showDragSideTooltips}
-            >
-              <div
-                className={`absolute top-0 left-0 h-full z-[15] pointer-events-auto ${canExternalDrag ? 'cursor-grab active:cursor-grabbing' : 'cursor-default'}`}
-                style={{
-                  width: dragZoneHalfWidth
-                }}
-                onMouseDown={canExternalDrag ? (e) => handleExternalDragMouseDown(e, externalDragPaths, externalDragIconPath) : undefined}
-              />
-            </Tooltip>
-          )}
-
-          {/* 右侧：拖拽排序 */}
-          <Tooltip content={sortTooltipContent} placement="top" asChild forceOpen={showDragSideTooltips}>
-            <div
-              className="absolute top-0 right-0 h-full z-[20] cursor-grab active:cursor-grabbing bg-transparent"
-              style={{
-                width: dragZoneHalfWidth,
-                right: sortDragZoneRightInset
-              }}
-              onMouseDown={(e) => {
-                e.stopPropagation();
-              }}
-              {...attributes}
-              {...listeners}
-            />
-          </Tooltip>
-        </>
       )}
       {settings.showBadges !== false && (hasFileMissing || isPasted) && (
         <Tooltip content={hasFileMissing ? t('clipboard.fileNotFound', '文件不存在') : t('common.pasted')} placement="right" asChild>
@@ -811,10 +682,12 @@ function areFavoriteItemPropsEqual(prevProps, nextProps) {
     && prevProps.isDraggable === nextProps.isDraggable
     && prevProps.isSelected === nextProps.isSelected
     && prevProps.isMultiSelected === nextProps.isMultiSelected
+    && prevProps.selectionNumber === nextProps.selectionNumber
     && prevProps.isMultiSelectMode === nextProps.isMultiSelectMode
     && prevProps.isDragActive === nextProps.isDragActive
     && prevProps.showIndex === nextProps.showIndex
-    && prevProps.animationDelay === nextProps.animationDelay;
+    && prevProps.animationDelay === nextProps.animationDelay
+    && prevProps.onPrepareExternalDrag === nextProps.onPrepareExternalDrag;
 }
 
 export default memo(FavoriteItem, areFavoriteItemPropsEqual);

@@ -33,10 +33,11 @@ function nextFavoritesRequestVersion(groupName = favoritesActiveGroupName) {
   return favoritesRequestVersion
 }
 
-function isFavoritesRequestCurrent(version, filter, contentType, groupName) {
+function isFavoritesRequestCurrent(version, filter, contentType, pasteStatus, groupName) {
   return version === favoritesRequestVersion
     && favoritesStore.filter === filter
     && favoritesStore.contentType === contentType
+    && favoritesStore.pasteStatus === pasteStatus
     && favoritesActiveGroupName === normalizeFavoritesGroupName(groupName)
 }
 
@@ -46,6 +47,7 @@ export const favoritesStore = proxy({
   totalCount: 0,
   filter: '',
   contentType: 'all',
+  pasteStatus: 'all',
   selectedIds: new Set(),
   selectedEntries: [],
   isMultiSelectMode: false,
@@ -193,7 +195,6 @@ export const favoritesStore = proxy({
           }
           return entry
         })
-        .sort((a, b) => a.index - b.index)
     }
 
     return true
@@ -232,7 +233,6 @@ export const favoritesStore = proxy({
             ? { ...entry, index: entry.index + 1 }
             : entry
         ))
-        .sort((a, b) => a.index - b.index)
     }
 
     const { start, end } = this.currentViewRange
@@ -271,11 +271,12 @@ export const favoritesStore = proxy({
     }
   },
   
-  enterMultiSelectMode() {
+  enterMultiSelectMode(entry = null) {
+    if (!entry?.id) return false
     this.isMultiSelectMode = true
-    this.selectedEntries = []
-    this.selectedIds = new Set()
-    this.selectionAnchorIndex = null
+    this.replaceSelection([entry])
+    this.selectionAnchorIndex = entry.index
+    return true
   },
 
   exitMultiSelectMode() {
@@ -311,7 +312,6 @@ export const favoritesStore = proxy({
       uniqueEntries.push(this.normalizeSelectedEntry(entry))
     }
 
-    uniqueEntries.sort((a, b) => a.index - b.index)
     this.selectedEntries = uniqueEntries
     this.selectedIds = new Set(uniqueEntries.map(entry => entry.id))
   },
@@ -320,7 +320,11 @@ export const favoritesStore = proxy({
     const normalizedEntry = this.normalizeSelectedEntry(entry)
     const exists = this.selectedEntries.some(selected => selected.id === normalizedEntry.id)
     if (exists) {
-      this.replaceSelection(this.selectedEntries.filter(selected => selected.id !== normalizedEntry.id))
+      if (this.selectedEntries.length === 1) {
+        this.exitMultiSelectMode()
+      } else {
+        this.replaceSelection(this.selectedEntries.filter(selected => selected.id !== normalizedEntry.id))
+      }
       return
     }
 
@@ -328,13 +332,21 @@ export const favoritesStore = proxy({
   },
 
   selectRange(entries) {
-    this.replaceSelection([...this.selectedEntries, ...entries])
+    this.replaceSelection(entries)
+  },
+
+  setPasteStatus(value) {
+    if (this.pasteStatus !== value) {
+      nextFavoritesRequestVersion()
+      this.pasteStatus = value
+      this.items = {}
+      this.loadingRanges = new Set()
+      this.exitMultiSelectMode()
+    }
   },
 
   getSelectedIds() {
-    return [...this.selectedEntries]
-      .sort((a, b) => a.index - b.index)
-      .map(entry => entry.id)
+    return this.selectedEntries.map(entry => entry.id)
   },
 
   toggleSelect(id) {
@@ -395,9 +407,10 @@ export async function loadFavoritesRange(startIndex, endIndex, groupName = null,
   const requestVersion = requestContext?.version ?? favoritesRequestVersion
   const requestFilter = requestContext?.filter ?? favoritesStore.filter
   const requestContentType = requestContext?.contentType ?? favoritesStore.contentType
+  const requestPasteStatus = requestContext?.pasteStatus ?? favoritesStore.pasteStatus
   const requestGroupName = normalizeFavoritesGroupName(requestContext?.groupName ?? groupName)
 
-  if (!isFavoritesRequestCurrent(requestVersion, requestFilter, requestContentType, requestGroupName)) {
+  if (!isFavoritesRequestCurrent(requestVersion, requestFilter, requestContentType, requestPasteStatus, requestGroupName)) {
     return
   }
 
@@ -432,10 +445,11 @@ export async function loadFavoritesRange(startIndex, endIndex, groupName = null,
       limit,
       groupName: requestGroupName,
       contentType: requestContentType !== 'all' ? requestContentType : undefined,
+      pasteStatus: requestPasteStatus,
       search: requestFilter || undefined
     })
 
-    if (!isFavoritesRequestCurrent(requestVersion, requestFilter, requestContentType, requestGroupName)) {
+    if (!isFavoritesRequestCurrent(requestVersion, requestFilter, requestContentType, requestPasteStatus, requestGroupName)) {
       return
     }
     
@@ -447,12 +461,12 @@ export async function loadFavoritesRange(startIndex, endIndex, groupName = null,
       favoritesStore.totalCount = result.total_count
     }
   } catch (err) {
-    if (isFavoritesRequestCurrent(requestVersion, requestFilter, requestContentType, requestGroupName)) {
+    if (isFavoritesRequestCurrent(requestVersion, requestFilter, requestContentType, requestPasteStatus, requestGroupName)) {
       console.error(`加载范围 ${startIndex}-${endIndex} 失败:`, err)
       favoritesStore.error = err.message || '加载失败'
     }
   } finally {
-    if (isFavoritesRequestCurrent(requestVersion, requestFilter, requestContentType, requestGroupName)) {
+    if (isFavoritesRequestCurrent(requestVersion, requestFilter, requestContentType, requestPasteStatus, requestGroupName)) {
       favoritesStore.removeLoadingRange(startIndex, endIndex)
     }
   }
@@ -469,6 +483,7 @@ export async function initFavorites(groupName = null) {
   const requestVersion = nextFavoritesRequestVersion(requestGroupName)
   const requestFilter = favoritesStore.filter
   const requestContentType = favoritesStore.contentType
+  const requestPasteStatus = favoritesStore.pasteStatus
 
   favoritesStore.loading = true
   favoritesStore.error = null
@@ -477,16 +492,17 @@ export async function initFavorites(groupName = null) {
     favoritesStore.items = {}
     favoritesStore.loadingRanges = new Set()
     
-    if (requestContentType !== 'all' || requestFilter) {
+    if (requestContentType !== 'all' || requestFilter || requestPasteStatus !== 'all') {
       const result = await getFavoritesHistory({
         offset: 0,
         limit: 50,
         groupName: requestGroupName,
         contentType: requestContentType !== 'all' ? requestContentType : undefined,
+        pasteStatus: requestPasteStatus,
         search: requestFilter || undefined
       })
 
-      if (!isFavoritesRequestCurrent(requestVersion, requestFilter, requestContentType, requestGroupName)) {
+      if (!isFavoritesRequestCurrent(requestVersion, requestFilter, requestContentType, requestPasteStatus, requestGroupName)) {
         return
       }
       
@@ -495,7 +511,7 @@ export async function initFavorites(groupName = null) {
     } else {
       const totalCount = await getFavoritesTotalCount(requestGroupName)
 
-      if (!isFavoritesRequestCurrent(requestVersion, requestFilter, requestContentType, requestGroupName)) {
+      if (!isFavoritesRequestCurrent(requestVersion, requestFilter, requestContentType, requestPasteStatus, requestGroupName)) {
         return
       }
 
@@ -507,17 +523,18 @@ export async function initFavorites(groupName = null) {
           version: requestVersion,
           filter: requestFilter,
           contentType: requestContentType,
+          pasteStatus: requestPasteStatus,
           groupName: requestGroupName,
         })
       }
     }
   } catch (err) {
-    if (isFavoritesRequestCurrent(requestVersion, requestFilter, requestContentType, requestGroupName)) {
+    if (isFavoritesRequestCurrent(requestVersion, requestFilter, requestContentType, requestPasteStatus, requestGroupName)) {
       console.error('初始化收藏列表失败:', err)
       favoritesStore.error = err.message || '加载失败'
     }
   } finally {
-    if (isFavoritesRequestCurrent(requestVersion, requestFilter, requestContentType, requestGroupName)) {
+    if (isFavoritesRequestCurrent(requestVersion, requestFilter, requestContentType, requestPasteStatus, requestGroupName)) {
       favoritesStore.loading = false
     }
   }

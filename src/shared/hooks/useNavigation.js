@@ -8,6 +8,7 @@ export function useNavigation({
   enabled = true
 }) {
   const snap = useSnapshot(navigationStore)
+  const firstItemId = items[0]?.id
   const lastHoverIndexRef = useRef(-1)
   const keyboardNavigationTimeoutRef = useRef(null)
   const scrollTimeoutRef = useRef(null)
@@ -184,14 +185,24 @@ export function useNavigation({
     }
   }, [])
   
-  // 当列表项数量变化时，检查当前选中索引是否有效
+  // 列表加载完成后默认选中第一项，并检查当前索引是否有效
   useEffect(() => {
-    if (snap.currentSelectedIndex >= items.length && items.length > 0) {
-      navigationStore.setSelectedIndex(items.length - 1)
-    } else if (items.length === 0) {
+    if (items.length === 0) {
       navigationStore.resetNavigation()
+      return
     }
-  }, [items.length, snap.currentSelectedIndex])
+
+    if (snap.currentSelectedIndex === -1) {
+      if (!items[0]?._isPlaceholder) {
+        navigationStore.setSelectedIndex(0)
+      }
+      return
+    }
+
+    if (snap.currentSelectedIndex >= items.length) {
+      navigationStore.setSelectedIndex(items.length - 1)
+    }
+  }, [firstItemId, items.length, snap.currentSelectedIndex])
   
   return {
     currentSelectedIndex: snap.currentSelectedIndex,

@@ -280,6 +280,7 @@ fn load_page(page: i64) -> Result<PanelPage, String> {
         limit: PANEL_PAGE_SIZE,
         search: None,
         content_type: None,
+        paste_status: None,
     })?;
 
     let total_pages = if result.total_count == 0 {

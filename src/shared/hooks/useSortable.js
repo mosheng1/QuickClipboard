@@ -38,7 +38,7 @@ class CustomMouseSensor extends LibMouseSensor {
 }
 
 // 可排序列表上下文 Hook
-export function useSortableList({ items, onDragEnd }) {
+export function useSortableList({ items, onDragEnd, restrictToVertical = true }) {
   const [activeId, setActiveId] = useState(null)
   
   const sensors = useSensors(
@@ -113,7 +113,7 @@ export function useSortableList({ items, onDragEnd }) {
     activeId,
     activeItem,
     strategy: verticalListSortingStrategy,
-    modifiers: [restrictToVerticalAxis],
+    modifiers: restrictToVertical ? [restrictToVerticalAxis] : [],
     collisionDetection: customCollisionDetection,
   }
 }

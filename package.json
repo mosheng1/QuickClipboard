@@ -1,7 +1,7 @@
 {
   "name": "quickclipboard",
   "private": true,
-  "version": "0.4.2",
+  "version": "0.5.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -22,8 +22,7 @@
     "babel-plugin-react-compiler": "^1.0.0",
     "postcss": "^8.5.6",
     "unocss": "^66.5.4",
-    "vite": "^7.0.4",
-    "vite-plugin-wasm": "^3.4.1"
+    "vite": "^7.0.4"
   },
   "dependencies": {
     "@chenglou/pretext": "^0.0.7",
@@ -36,7 +35,6 @@
     "@dnd-kit/modifiers": "^9.0.0",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@pixi/graphics-smooth": "^1.1.1",
     "@tabler/icons-webfont": "^3.35.0",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.4.2",
@@ -50,7 +48,6 @@
     "emoji-picker-element-data": "^1.8.0",
     "i18next": "^25.6.0",
     "i18next-browser-languagedetector": "^8.2.0",
-    "pixi.js": "^7.4.3",
     "qrcode": "^1.5.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",

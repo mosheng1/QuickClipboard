@@ -496,6 +496,7 @@ fn handle_paste_plain_text_press(app: &AppHandle) -> Result<(), String> {
             limit: 1,
             search: None,
             content_type: None,
+            paste_status: None,
         })?
         .items;
 
@@ -646,6 +647,7 @@ fn handle_number_shortcut_press(index: usize) -> Result<(), String> {
         limit: 9,
         search: None,
         content_type: None,
+        paste_status: None,
     })?
     .items;
 

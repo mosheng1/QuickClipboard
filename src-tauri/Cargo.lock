@@ -4,7 +4,7 @@ version = 4
 
 [[package]]
 name = "QuickClipboard"
-version = "0.4.2"
+version = "0.5.0"
 dependencies = [
  "active-win-pos-rs",
  "argon2",
@@ -60,6 +60,7 @@ dependencies = [
  "tungstenite",
  "uuid",
  "windows 0.62.2",
+ "windows-core 0.62.2",
  "winreg 0.55.0",
  "zeroize",
  "zip 2.4.2",

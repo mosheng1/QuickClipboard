@@ -136,6 +136,7 @@ pub struct QueryParams {
     // 内容类型过滤（可选）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_type: Option<String>,
+    pub paste_status: Option<String>,
 }
 
 impl Default for QueryParams {
@@ -145,6 +146,7 @@ impl Default for QueryParams {
             limit: 50,
             search: None,
             content_type: None,
+            paste_status: None,
         }
     }
 }
@@ -165,6 +167,7 @@ pub struct FavoritesQueryParams {
     // 内容类型过滤（可选）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub content_type: Option<String>,
+    pub paste_status: Option<String>,
 }
 
 impl Default for FavoritesQueryParams {
@@ -175,6 +178,7 @@ impl Default for FavoritesQueryParams {
             group_name: None,
             search: None,
             content_type: None,
+            paste_status: None,
         }
     }
 }

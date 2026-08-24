@@ -19,11 +19,10 @@ const DEFAULT_SETTINGS = {
 //获取当前主题设置
 export async function getCurrentTheme() {
     try {
-        const settings = await invoke('reload_settings');
-        return settings.theme || 'auto';
+        return await invoke('reload_settings');
     } catch (error) {
         console.error('获取主题设置失败:', error);
-        return 'auto';
+        return { theme: 'auto' };
     }
 }
 

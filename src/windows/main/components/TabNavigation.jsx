@@ -9,31 +9,7 @@ import FilterButton from './FilterButton';
 import GroupsPopup from './GroupsPopup';
 import Tooltip from '@shared/components/common/Tooltip.jsx';
 
-const FILTER_BUTTON_SIZE = 28;
-const FILTER_BUTTON_GAP = 4;
-const GROUP_BUTTON_WIDTH = 60;
-const FILTER_IDS = ['all', 'text', 'image', 'file', 'link'];
-
-function getCollapsedFilterWidth(filterCount, groupButtonWidth) {
-  if (filterCount <= 0) {
-    return groupButtonWidth;
-  }
-
-  return filterCount * FILTER_BUTTON_SIZE
-    + (filterCount - 1) * FILTER_BUTTON_GAP
-    + FILTER_BUTTON_GAP
-    + groupButtonWidth;
-}
-
-function getVisibleFilterCountByWidth(width, groupButtonWidth) {
-  for (let count = FILTER_IDS.length; count >= 1; count -= 1) {
-    if (width >= getCollapsedFilterWidth(count, groupButtonWidth)) {
-      return count;
-    }
-  }
-
-  return 1;
-}
+const FILTER_IDS = ['text', 'image', 'file', 'link'];
 
 function measureIndicator(activeElement, containerElement) {
   if (!activeElement || !containerElement || !containerElement.contains(activeElement)) {
@@ -68,11 +44,14 @@ function TabNavigation({
   onTabChange,
   contentFilter,
   onFilterChange,
+  pasteFilter = 'all',
+  onPasteFilterChange,
   emojiMode,
   onEmojiModeChange,
   onGroupChange,
   groupsPopupRef,
-  navigationMode = 'horizontal'
+  navigationMode = 'horizontal',
+  compactFilters = false
 }) {
   const {
     t
@@ -81,6 +60,7 @@ function TabNavigation({
   const uiAnimationEnabled = settings.uiAnimationEnabled !== false;
   const visibleOptionalTabs = normalizeVisibleOptionalTabs(settings.visibleOptionalTabs);
   const isSidebarLayout = navigationMode === 'sidebar';
+  const isCompactFiltersLayout = compactFilters && !isSidebarLayout;
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isGroupsPanelOpen, setIsGroupsPanelOpen] = useState(false);
   const tabsRef = useRef({});
@@ -92,13 +72,9 @@ function TabNavigation({
   const controlsIndicatorRef = useRef(null);
   const rightAreaRef = useRef(null);
   const [tabAnimationKey, setTabAnimationKey] = useState(0);
-  const [filterAnimationKey, setFilterAnimationKey] = useState(0);
   const [emojiModeAnimationKey, setEmojiModeAnimationKey] = useState(0);
-  const [isFilterExpanded, setIsFilterExpanded] = useState(false);
-  const [collapsedVisibleFilterCount, setCollapsedVisibleFilterCount] = useState(3);
   const [sidebarFixedWidth, setSidebarFixedWidth] = useState(null);
   const sidebarTabsMainRef = useRef(null);
-  const filterCollapseTimerRef = useRef(null);
 
   const allTabs = [{
     id: 'clipboard',
@@ -114,11 +90,7 @@ function TabNavigation({
     icon: 'ti ti-mood-smile'
   }];
   const tabs = allTabs.filter(tab => tab.id === 'clipboard' || visibleOptionalTabs.includes(tab.id));
-  const horizontalTabAreaMinPercent = 28;
-  const horizontalTabAreaMaxPercent = 50;
-  const horizontalTabAreaPercent = allTabs.length <= 1
-    ? horizontalTabAreaMaxPercent
-    : horizontalTabAreaMinPercent + (tabs.length - 1) * ((horizontalTabAreaMaxPercent - horizontalTabAreaMinPercent) / (allTabs.length - 1));
+  const horizontalTabAreaPercent = 35;
   const horizontalRightAreaPercent = 100 - horizontalTabAreaPercent;
 
   const emojiModes = [{
@@ -137,10 +109,6 @@ function TabNavigation({
   }];
 
   const filters = [{
-    id: 'all',
-    label: t('filter.all') || '全部',
-    icon: "ti ti-category"
-  }, {
     id: 'text',
     label: t('filter.text') || '文本',
     icon: "ti ti-file-text"
@@ -157,17 +125,19 @@ function TabNavigation({
     label: t('filter.link') || '链接',
     icon: "ti ti-link"
   }];
-
-  const isFilterAutoExpanded = collapsedVisibleFilterCount >= 5;
-  const expandableFilters = filters.slice(collapsedVisibleFilterCount);
-  const useFloatingExpandedFilters = !isFilterAutoExpanded && collapsedVisibleFilterCount <= 2 && expandableFilters.length > 0;
-  const shouldStretchHorizontalFilters = !isSidebarLayout && !useFloatingExpandedFilters;
-  const shouldExpandFilters = isFilterAutoExpanded || isFilterExpanded;
-  const shouldHideGroupButton = !useFloatingExpandedFilters && !isFilterAutoExpanded && shouldExpandFilters;
-  const expandedExtraWidth = expandableFilters.length > 0
-    ? expandableFilters.length * FILTER_BUTTON_SIZE + (expandableFilters.length - 1) * FILTER_BUTTON_GAP
-    : 0;
-  const groupButtonWidth = isSidebarLayout ? 92 : GROUP_BUTTON_WIDTH;
+  const pasteFilters = [{ id: 'unpasted', label: '未粘贴', icon: 'ti ti-clipboard-x' }, {
+    id: 'pasted', label: '已粘贴', icon: 'ti ti-clipboard-check'
+  }];
+  const selectedFilters = String(contentFilter || 'all')
+    .split(',')
+    .map(value => value.trim())
+    .filter(value => FILTER_IDS.includes(value));
+  const isFilterSelected = id => selectedFilters.includes(id);
+  const selectedPasteFilters = String(pasteFilter || 'all')
+    .split(',')
+    .map(value => value.trim())
+    .filter(value => pasteFilters.some(filter => filter.id === value));
+  const isPasteFilterSelected = id => selectedPasteFilters.includes(id);
   const sidebarShowLabel = isSidebarLayout ? !isSidebarCollapsed : true;
 
   const updateTabIndicator = useCallback(() => {
@@ -177,33 +147,14 @@ function TabNavigation({
   }, [activeTab]);
 
   const updateFilterIndicator = useCallback(() => {
-    const activeElement = filtersRef.current[contentFilter];
-    const activeFilterIndex = FILTER_IDS.indexOf(contentFilter);
-    const isHiddenInCollapsedState = !shouldExpandFilters && activeFilterIndex >= collapsedVisibleFilterCount;
-
-    if (isHiddenInCollapsedState) {
-      applyIndicatorPosition(controlsIndicatorRef.current, { width: 0, left: 0 });
-      return;
-    }
-
-    const nextIndicator = measureIndicator(activeElement, controlsContainerRef.current);
-    applyIndicatorPosition(controlsIndicatorRef.current, nextIndicator);
-  }, [contentFilter, shouldExpandFilters, collapsedVisibleFilterCount]);
+    applyIndicatorPosition(controlsIndicatorRef.current, { width: 0, left: 0 });
+  }, []);
 
   const updateEmojiModeIndicator = useCallback(() => {
     const activeElement = emojiModesRef.current[emojiMode];
     const nextIndicator = measureIndicator(activeElement, controlsContainerRef.current);
     applyIndicatorPosition(controlsIndicatorRef.current, nextIndicator);
   }, [emojiMode]);
-
-  useEffect(() => {
-    return () => {
-      if (filterCollapseTimerRef.current) {
-        clearTimeout(filterCollapseTimerRef.current);
-        filterCollapseTimerRef.current = null;
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (isSidebarLayout) {
@@ -225,18 +176,6 @@ function TabNavigation({
   }, [isSidebarLayout]);
 
   useEffect(() => {
-    if (activeTab === 'emoji') {
-      return undefined;
-    }
-    const timer = setTimeout(() => {
-      setFilterAnimationKey(prev => prev + 1);
-    }, 300);
-    return () => {
-      clearTimeout(timer);
-    };
-  }, [contentFilter, activeTab]);
-
-  useEffect(() => {
     const timer = setTimeout(() => {
       setEmojiModeAnimationKey(prev => prev + 1);
     }, 300);
@@ -245,55 +184,6 @@ function TabNavigation({
     };
   }, [emojiMode]);
 
-  useEffect(() => {
-    setIsFilterExpanded(false);
-  }, [activeTab]);
-
-  useEffect(() => {
-    if (isSidebarLayout) {
-      setCollapsedVisibleFilterCount(FILTER_IDS.length);
-      return undefined;
-    }
-
-    if (activeTab === 'emoji') {
-      setCollapsedVisibleFilterCount(3);
-      return undefined;
-    }
-
-    const target = rightAreaRef.current;
-    if (!target) {
-      return undefined;
-    }
-
-    const updateAutoExpanded = () => {
-      const width = target.clientWidth;
-      const nextCollapsedVisibleCount = getVisibleFilterCountByWidth(width, groupButtonWidth);
-      setCollapsedVisibleFilterCount(prev => (prev === nextCollapsedVisibleCount ? prev : nextCollapsedVisibleCount));
-    };
-
-    updateAutoExpanded();
-
-    if (typeof ResizeObserver === 'undefined') {
-      window.addEventListener('resize', updateAutoExpanded);
-      return () => {
-        window.removeEventListener('resize', updateAutoExpanded);
-      };
-    }
-
-    const observer = new ResizeObserver(() => {
-      updateAutoExpanded();
-    });
-    observer.observe(target);
-    return () => {
-      observer.disconnect();
-    };
-  }, [activeTab, isSidebarLayout, groupButtonWidth]);
-
-  useEffect(() => {
-    if (isFilterAutoExpanded) {
-      setIsFilterExpanded(false);
-    }
-  }, [isFilterAutoExpanded]);
 
   useLayoutEffect(() => {
     if (!isSidebarLayout) {
@@ -408,32 +298,18 @@ function TabNavigation({
     onEmojiModeChange(id);
   };
 
-  const handleFilterAreaMouseEnter = () => {
-    if (isFilterAutoExpanded) {
-      return;
-    }
-    if (filterCollapseTimerRef.current) {
-      clearTimeout(filterCollapseTimerRef.current);
-      filterCollapseTimerRef.current = null;
-    }
-    setIsFilterExpanded(true);
+  const handleFilterChange = id => {
+    const nextFilters = isFilterSelected(id)
+      ? selectedFilters.filter(filterId => filterId !== id)
+      : [...selectedFilters, id];
+    onFilterChange(nextFilters.join(',') || 'all');
   };
 
-  const handleFilterAreaMouseLeave = (event) => {
-    if (isFilterAutoExpanded) {
-      return;
-    }
-    const nextTarget = event?.relatedTarget;
-    if (nextTarget instanceof Node && event.currentTarget.contains(nextTarget)) {
-      return;
-    }
-    if (filterCollapseTimerRef.current) {
-      clearTimeout(filterCollapseTimerRef.current);
-    }
-    filterCollapseTimerRef.current = setTimeout(() => {
-      setIsFilterExpanded(false);
-      filterCollapseTimerRef.current = null;
-    }, 180);
+  const handlePasteFilterChange = id => {
+    const nextFilters = isPasteFilterSelected(id)
+      ? selectedPasteFilters.filter(filterId => filterId !== id)
+      : [...selectedPasteFilters, id];
+    onPasteFilterChange(nextFilters.join(',') || 'all');
   };
 
   const renderSidebarButton = ({
@@ -526,12 +402,16 @@ function TabNavigation({
                       emojiModesRef.current[mode.id] = el;
                     }
                   }))
-                : filters.map(filter => renderSidebarButton({
+                : [...filters, ...pasteFilters].map(filter => renderSidebarButton({
                     id: filter.id,
                     label: filter.label,
                     icon: filter.icon,
-                    isActive: contentFilter === filter.id,
-                    onClick: onFilterChange,
+                    isActive: pasteFilters.some(item => item.id === filter.id)
+                      ? isPasteFilterSelected(filter.id)
+                      : isFilterSelected(filter.id),
+                    onClick: pasteFilters.some(item => item.id === filter.id)
+                      ? handlePasteFilterChange
+                      : handleFilterChange,
                     showLabel: sidebarShowLabel,
                     buttonRef: el => {
                       filtersRef.current[filter.id] = el;
@@ -671,12 +551,7 @@ function TabNavigation({
       >
         <div
           ref={controlsContainerRef}
-          className={`flex min-w-0 max-w-full items-center gap-1 relative overflow-visible ${
-            activeTab === 'emoji' || isFilterAutoExpanded
-              ? 'w-full justify-center'
-              : 'w-full'
-          }`}
-          onMouseLeave={activeTab === 'emoji' ? undefined : handleFilterAreaMouseLeave}
+          className="flex min-w-0 max-w-full items-center gap-1 relative overflow-visible w-full"
         >
           {!isSidebarLayout && (
             <div ref={controlsIndicatorRef} className={`absolute left-0 w-0 rounded-lg pointer-events-none ${uiAnimationEnabled ? 'transition-all duration-300 ease-out' : ''}`} style={{
@@ -684,7 +559,7 @@ function TabNavigation({
               top: '50%',
               transform: 'translateY(-50%)'
             }}>
-              <div key={activeTab === 'emoji' ? `emoji-mode-bounce-${emojiModeAnimationKey}` : `filter-bounce-${filterAnimationKey}`} className={`w-full h-full rounded-lg bg-[var(--qc-accent)] ${uiAnimationEnabled ? 'animate-button-bounce' : ''}`} />
+              <div key={`emoji-mode-bounce-${emojiModeAnimationKey}`} className={`w-full h-full rounded-lg bg-[var(--qc-accent)] ${uiAnimationEnabled ? 'animate-button-bounce' : ''}`} />
             </div>
           )}
           {activeTab === 'emoji'
@@ -710,102 +585,28 @@ function TabNavigation({
               ))
             : (
                 <>
-                  {isFilterAutoExpanded ? (
-                    <div className="flex items-center gap-1 flex-1 min-w-0" onMouseEnter={handleFilterAreaMouseEnter}>
-                      {filters.map(filter => (
-                        <FilterButton
-                          key={filter.id}
-                          id={filter.id}
-                          label={filter.label}
-                          icon={filter.icon}
-                          isActive={contentFilter === filter.id}
-                          onClick={onFilterChange}
-                          stretch={shouldStretchHorizontalFilters}
-                          buttonRef={el => {
-                            filtersRef.current[filter.id] = el;
-                          }}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="relative flex items-center gap-1 flex-1 min-w-0" onMouseEnter={handleFilterAreaMouseEnter}>
-                      {filters.slice(0, collapsedVisibleFilterCount).map(filter => (
-                        <FilterButton
-                          key={filter.id}
-                          id={filter.id}
-                          label={filter.label}
-                          icon={filter.icon}
-                          isActive={contentFilter === filter.id}
-                          onClick={onFilterChange}
-                          stretch={shouldStretchHorizontalFilters}
-                          buttonRef={el => {
-                            filtersRef.current[filter.id] = el;
-                          }}
-                        />
-                      ))}
-
-                      {useFloatingExpandedFilters ? (
-                        <div
-                          className={`absolute right-0 top-[calc(100%+6px)] z-[75] box-content flex w-7 flex-col items-center gap-1 rounded-lg border border-qc-border bg-qc-panel py-1 shadow-lg ${
-                            uiAnimationEnabled ? 'transition-all duration-200 ease-out' : ''
-                          }`}
-                          style={{
-                            opacity: shouldExpandFilters ? 1 : 0,
-                            transform: shouldExpandFilters ? 'translateY(0)' : 'translateY(-4px)',
-                            pointerEvents: shouldExpandFilters ? 'auto' : 'none'
-                          }}
-                        >
-                          {expandableFilters.map(filter => (
-                            <FilterButton
-                              key={filter.id}
-                              id={filter.id}
-                              label={filter.label}
-                              icon={filter.icon}
-                              isActive={contentFilter === filter.id}
-                              onClick={onFilterChange}
-                              tooltipPlacement="left"
-                              buttonRef={el => {
-                                filtersRef.current[filter.id] = el;
-                              }}
-                            />
-                          ))}
-                        </div>
-                      ) : (
-                        <div
-                          className={`flex items-center gap-1 overflow-hidden shrink-0 min-w-0 ${uiAnimationEnabled ? 'transition-all duration-300 ease-out' : ''}`}
-                          style={{
-                            width: shouldExpandFilters ? `${expandedExtraWidth}px` : '0px',
-                            opacity: shouldExpandFilters ? 1 : 0,
-                            pointerEvents: shouldExpandFilters ? 'auto' : 'none'
-                          }}
-                        >
-                          {expandableFilters.map(filter => (
-                            <FilterButton
-                              key={filter.id}
-                              id={filter.id}
-                              label={filter.label}
-                              icon={filter.icon}
-                              isActive={contentFilter === filter.id}
-                              onClick={onFilterChange}
-                              stretch={false}
-                              buttonRef={el => {
-                                filtersRef.current[filter.id] = el;
-                              }}
-                            />
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
+                  <div className={isCompactFiltersLayout
+                    ? 'grid grid-cols-3 grid-rows-2 gap-0 h-8 flex-1 min-w-0'
+                    : 'flex items-center gap-0 h-9 flex-1 min-w-0'}>
+                    {[...filters, ...pasteFilters].map(filter => (
+                      <FilterButton key={filter.id} id={filter.id} label={filter.label}
+                        icon={filter.icon}
+                        isActive={FILTER_IDS.includes(filter.id)
+                          ? isFilterSelected(filter.id)
+                          : isPasteFilterSelected(filter.id)}
+                        onClick={FILTER_IDS.includes(filter.id)
+                          ? handleFilterChange
+                          : handlePasteFilterChange}
+                        stretch
+                        compact={isCompactFiltersLayout}
+                        buttonRef={el => { filtersRef.current[filter.id] = el; }} />
+                    ))}
+                  </div>
                   <div
-                    className={`overflow-visible shrink-0 ${uiAnimationEnabled ? 'transition-all duration-300 ease-out' : ''}`}
-                    style={{
-                      width: shouldHideGroupButton ? '0px' : `${groupButtonWidth}px`,
-                      opacity: shouldHideGroupButton ? 0 : 1,
-                      pointerEvents: shouldHideGroupButton ? 'none' : 'auto'
-                    }}
-                  >
+                    className="w-px h-6 shrink-0"
+                    style={{ backgroundColor: 'var(--bg-titlebar-border, var(--qc-border-strong))', opacity: 0.95 }}
+                  />
+                  <div className="overflow-visible shrink-0 w-[60px]">
                     <GroupsPopup
                       ref={groupsPopupRef}
                       activeTab={activeTab}

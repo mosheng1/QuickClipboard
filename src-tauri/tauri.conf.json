@@ -80,7 +80,7 @@
     "windows": {
       "nsis": {
         "installerIcon": "icons/icon.ico",
-        "template": "bundle-scripts/windows/nsis/x64/installer.nsi",
+        "installerHooks": "bundle-scripts/windows/nsis/installer-hooks.nsh",
         "installMode": "perMachine",
         "languages": [
           "SimpChinese"

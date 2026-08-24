@@ -10,6 +10,7 @@ pub mod settings;
 pub mod sound;
 pub mod sync_transfer;
 pub mod system;
+pub mod text_drag;
 pub mod webdav_sync;
 pub mod window;
 

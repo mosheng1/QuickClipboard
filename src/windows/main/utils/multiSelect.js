@@ -1,4 +1,8 @@
 import { getPrimaryType } from '@shared/utils/contentType';
+import { mergePasteClipboardItems } from '@shared/api/clipboard';
+import { mergePasteFavoriteItems } from '@shared/api/favorites';
+import { clipboardStore } from '@shared/store/clipboardStore';
+import { favoritesStore } from '@shared/store/favoritesStore';
 
 const TEXT_TYPES = new Set(['text', 'link', 'rich_text']);
 const MERGEABLE_TYPES = new Set(['text', 'link', 'rich_text', 'image', 'file']);
@@ -36,4 +40,36 @@ export function getSelectionMergeState(selectedEntries = []) {
     isTextOnly: primaryTypes.every(type => TEXT_TYPES.has(type)),
     reasonKey: null,
   };
+}
+
+// 执行多选合并粘贴，供操作栏和粘贴快捷键共用。
+export async function mergePasteSelectedItems(activeTab) {
+  const currentStore = activeTab === 'clipboard'
+    ? clipboardStore
+    : activeTab === 'favorites'
+      ? favoritesStore
+      : null;
+
+  if (!currentStore) {
+    return false;
+  }
+
+  const selectedEntries = currentStore.selectedEntries || [];
+  if (!getSelectionMergeState(selectedEntries).canMerge) {
+    return false;
+  }
+
+  const selectedIds = currentStore.getSelectedIds();
+  if (!selectedIds.length) {
+    return false;
+  }
+
+  if (activeTab === 'clipboard') {
+    await mergePasteClipboardItems(selectedIds);
+  } else {
+    await mergePasteFavoriteItems(selectedIds);
+  }
+
+  currentStore.exitMultiSelectMode();
+  return true;
 }

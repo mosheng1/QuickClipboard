@@ -106,12 +106,20 @@ export async function createContextMenu(window, states, onThumbnailToggle) {
         icon: "ti ti-x",
       }),
     ];
-    const theme = await getCurrentTheme();
+    const settings = await getCurrentTheme();
     const result = await showContextMenu({
       items: menuItems,
       placement: createMenuPlacementFromEvent(e),
       appearance: {
-        theme,
+        theme: settings.theme,
+        lightThemeStyle: settings.lightThemeStyle,
+        darkThemeStyle: settings.darkThemeStyle,
+        uiAnimationEnabled: settings.uiAnimationEnabled,
+        customFontEnabled: settings.customFontEnabled,
+        customFontType: settings.customFontType,
+        customFontPath: settings.customFontPath,
+        customFontUrl: settings.customFontUrl,
+        customFontFamily: settings.customFontFamily,
       },
     });
     if (!result) return;

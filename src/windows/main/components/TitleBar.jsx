@@ -17,6 +17,7 @@ import {
 import { clipboardStore } from "@shared/store/clipboardStore";
 import { favoritesStore } from "@shared/store/favoritesStore";
 import { settingsStore } from "@shared/store/settingsStore";
+import { navigationStore } from "@shared/store/navigationStore";
 import {
   showContextMenu,
   createMenuPlacementFromEvent,
@@ -36,11 +37,29 @@ import {
 } from "@shared/services/oneTimePaste";
 import { normalizeDisplayPriorityValue } from "@shared/utils/displayFormatPriority";
 import { formatUserMessage } from "@shared/utils/userMessages";
-import logoIcon from "@/assets/icon1024.png";
+import logoIcon from "@/assets/icon32.png";
 import TitleBarSearch from "./TitleBarSearch";
 import Tooltip from "@shared/components/common/Tooltip.jsx";
 const ACTIVE_ICON_BUTTON_CLASS =
   "bg-blue-500 bg-dynamic-primary text-white hover:bg-blue-600";
+const TITLE_BAR_IMAGE_ICON_STYLE = {
+  imageRendering: "pixelated",
+};
+const TITLE_BAR_FONT_ICON_STYLE = {
+  WebkitFontSmoothing: "none",
+};
+const TITLE_BAR_BUTTON_CLASS =
+  "w-7 h-7 flex items-center justify-center rounded-lg transition-all duration-200";
+const TITLE_BAR_ICON_STYLE = {
+  fontSize: 16,
+  ...TITLE_BAR_FONT_ICON_STYLE,
+};
+const TITLE_BAR_GRID_BUTTON_CLASS =
+  "flex h-full w-full items-center justify-center transition-all duration-200";
+const TITLE_BAR_GRID_ICON_STYLE = {
+  fontSize: 14,
+  ...TITLE_BAR_FONT_ICON_STYLE,
+};
 const TOAST_CONFIG = {
   size: TOAST_SIZES.EXTRA_SMALL,
   position: TOAST_POSITIONS.BOTTOM_RIGHT,
@@ -54,6 +73,7 @@ const TitleBar = forwardRef(
       position = "top",
       activeTab = "clipboard",
       updateBannerState = null,
+      compactActions = false,
     },
     ref,
   ) => {
@@ -61,6 +81,7 @@ const TitleBar = forwardRef(
     const clipboardSnap = useSnapshot(clipboardStore);
     const favoritesSnap = useSnapshot(favoritesStore);
     const settingsSnap = useSnapshot(settingsStore);
+    const navigationSnap = useSnapshot(navigationStore);
     const searchRef = useRef(null);
     const [isPinned, setIsPinned] = useState(() =>
       Boolean(getWindowPinState()),
@@ -70,6 +91,16 @@ const TitleBar = forwardRef(
     );
     const [webdavBusy, setWebdavBusy] = useState("");
     const isVertical = position === "left" || position === "right";
+    const isCompactActions = compactActions && !isVertical;
+    const actionContainerClass = isCompactActions
+      ? "grid grid-cols-2 grid-rows-2 flex-shrink-0 overflow-hidden rounded-md border border-qc-border h-8 w-14"
+      : `flex flex-shrink-0 ${isVertical ? "flex-col items-center" : "items-center"} gap-1`;
+    const actionButtonClass = isCompactActions
+      ? TITLE_BAR_GRID_BUTTON_CLASS
+      : TITLE_BAR_BUTTON_CLASS;
+    const actionIconStyle = isCompactActions
+      ? TITLE_BAR_GRID_ICON_STYLE
+      : TITLE_BAR_ICON_STYLE;
     const tooltipPlacement = isVertical
       ? position === "left"
         ? "right"
@@ -136,6 +167,24 @@ const TitleBar = forwardRef(
         setIsPinned(Boolean(result));
       } catch (error) {
         console.error("标题栏固定窗口失败:", error);
+      }
+    };
+    const handleToggleEdgeHide = async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const previousValue = Boolean(settingsStore.edgeHideEnabled);
+      const nextValue = !previousValue;
+      try {
+        const result = await settingsStore.saveSetting(
+          "edgeHideEnabled",
+          nextValue,
+        );
+        if (result?.success === false) {
+          settingsStore.edgeHideEnabled = previousValue;
+        }
+      } catch (error) {
+        settingsStore.edgeHideEnabled = previousValue;
+        console.error("标题栏切换贴边隐藏失败:", error);
       }
     };
     const handleOpenSettings = async (event) => {
@@ -272,7 +321,19 @@ const TitleBar = forwardRef(
       if (isMultiSelectMode) {
         currentStore.exitMultiSelectMode();
       } else {
-        currentStore.enterMultiSelectMode();
+        const activeIndex = navigationSnap.currentSelectedIndex;
+        const activeItem = typeof activeIndex === "number" && activeIndex >= 0
+          ? currentStore.getItem(activeIndex)
+          : null;
+        if (!activeItem?.id) {
+          toast.warning(t("multiSelect.selectFirst"), TOAST_CONFIG);
+          return;
+        }
+        currentStore.enterMultiSelectMode({
+          id: activeItem.id,
+          index: activeIndex,
+          contentType: activeItem.content_type,
+        });
       }
     };
     const handleMoreMenu = async (event) => {
@@ -599,15 +660,24 @@ const TitleBar = forwardRef(
                   src={logoIcon}
                   alt="QuickClipboard"
                   className="h-4.5 w-4.5 rounded-sm"
+                  style={TITLE_BAR_IMAGE_ICON_STYLE}
                 />
                 <span className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <i className="ti ti-arrow-big-up text-[12px] leading-none text-emerald-600 dark:text-emerald-400" />
+                  <i
+                    className="ti ti-arrow-big-up text-[12px] leading-none text-emerald-600 dark:text-emerald-400"
+                    style={TITLE_BAR_FONT_ICON_STYLE}
+                  />
                 </span>
               </button>
             </Tooltip>
           ) : (
             <div className="w-6 h-6 flex items-center justify-center pointer-events-none">
-              <img src={logoIcon} alt="QuickClipboard" className="w-5 h-5" />
+              <img
+                src={logoIcon}
+                alt="QuickClipboard"
+                className="w-5 h-5"
+                style={TITLE_BAR_IMAGE_ICON_STYLE}
+              />
             </div>
           )}
         </div>
@@ -624,9 +694,7 @@ const TitleBar = forwardRef(
             position={position}
           />
 
-          <div
-            className={`flex flex-shrink-0 ${isVertical ? "flex-col items-center" : "items-center"} gap-1`}
-          >
+          <div className={actionContainerClass}>
             <Tooltip
               content={
                 isMultiSelectMode
@@ -637,7 +705,7 @@ const TitleBar = forwardRef(
               asChild
             >
               <button
-                className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all duration-200 ${!currentStore ? "text-qc-fg-subtle opacity-60 cursor-not-allowed" : isMultiSelectMode ? ACTIVE_ICON_BUTTON_CLASS : "hover:bg-qc-hover text-qc-fg-muted"}`}
+                className={`${actionButtonClass} ${isCompactActions ? "border-r border-b border-qc-border" : ""} ${!currentStore ? "text-qc-fg-subtle opacity-60 cursor-not-allowed" : isMultiSelectMode ? ACTIVE_ICON_BUTTON_CLASS : "hover:bg-qc-hover text-qc-fg-muted"}`}
                 aria-label={
                   isMultiSelectMode
                     ? t("multiSelect.exitMode")
@@ -651,9 +719,28 @@ const TitleBar = forwardRef(
                   className={
                     isMultiSelectMode ? "ti ti-list" : "ti ti-list-check"
                   }
-                  style={{
-                    fontSize: 16,
-                  }}
+                  style={actionIconStyle}
+                  data-stroke="1.5"
+                ></i>
+              </button>
+            </Tooltip>
+
+            <Tooltip
+              content={t("settings.clipboard.edgeHideEnabled")}
+              placement={tooltipPlacement}
+              asChild
+            >
+              <button
+                className={`${actionButtonClass} ${isCompactActions ? "border-b border-qc-border" : ""} ${settingsSnap.edgeHideEnabled ? ACTIVE_ICON_BUTTON_CLASS : "hover:bg-qc-hover text-qc-fg-muted"}`}
+                role="switch"
+                aria-checked={Boolean(settingsSnap.edgeHideEnabled)}
+                aria-label={t("settings.clipboard.edgeHideEnabled")}
+                type="button"
+                onClick={handleToggleEdgeHide}
+              >
+                <i
+                  className={settingsSnap.edgeHideEnabled ? "ti ti-browser-check" : "ti ti-browser"}
+                  style={actionIconStyle}
                   data-stroke="1.5"
                 ></i>
               </button>
@@ -665,15 +752,13 @@ const TitleBar = forwardRef(
               asChild
             >
               <button
-                className={`w-7 h-7 flex items-center justify-center rounded-lg transition-all duration-200 ${isPinned ? ACTIVE_ICON_BUTTON_CLASS : "hover:bg-qc-hover text-qc-fg-muted"}`}
+                className={`${actionButtonClass} ${isCompactActions ? "border-r border-qc-border" : ""} ${isPinned ? ACTIVE_ICON_BUTTON_CLASS : "hover:bg-qc-hover text-qc-fg-muted"}`}
                 onClick={handleTogglePin}
                 aria-label={t("tools.pin")}
               >
                 <i
                   className="ti ti-pin"
-                  style={{
-                    fontSize: 16,
-                  }}
+                  style={actionIconStyle}
                   data-stroke="1.5"
                 ></i>
               </button>
@@ -685,16 +770,14 @@ const TitleBar = forwardRef(
               asChild
             >
               <button
-                className="w-7 h-7 flex items-center justify-center rounded-lg transition-all duration-200 hover:bg-qc-hover text-qc-fg-muted"
+                className={`${actionButtonClass} hover:bg-qc-hover text-qc-fg-muted`}
                 aria-label={t("tools.more")}
                 type="button"
                 onClick={handleMoreMenu}
               >
                 <i
                   className="ti ti-dots"
-                  style={{
-                    fontSize: 16,
-                  }}
+                  style={actionIconStyle}
                   data-stroke="1.5"
                 ></i>
               </button>

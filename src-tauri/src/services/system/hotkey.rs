@@ -40,3 +40,11 @@ pub fn enable_navigation_hotkeys() {
 pub fn disable_navigation_hotkeys() {
     navigation::disable_navigation_hotkeys();
 }
+
+pub fn suspend_execute_item_hotkey() {
+    navigation::suspend_execute_item_hotkey();
+}
+
+pub fn resume_execute_item_hotkey() {
+    navigation::resume_execute_item_hotkey();
+}

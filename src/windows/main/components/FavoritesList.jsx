@@ -9,12 +9,15 @@ import { favoritesStore, loadFavoritesRange, pasteFavorite } from '@shared/store
 import { groupsStore } from '@shared/store/groupsStore';
 import { navigationStore } from '@shared/store/navigationStore';
 import { settingsStore } from '@shared/store/settingsStore';
-import { moveFavoriteItem, closePreviewWindow } from '@shared/api';
+import { getFavoritesHistory, moveFavoriteItem, closePreviewWindow } from '@shared/api';
 import FavoriteItem from './FavoriteItem';
+import { useExternalDragSwitch } from '@shared/hooks/useExternalDragSwitch';
+import ExternalDragSafeZones from '@shared/components/ExternalDragSafeZones';
 
 const SCROLL_DEBOUNCE_DELAY = 50;
 const LIST_PRELOAD_PADDING = 20;
 const LIST_VIEWPORT_PADDING = 120;
+const SELECTION_LOAD_PAGE_SIZE = 100;
 
 const FavoritesList = forwardRef(({
   onScrollStateChange
@@ -26,6 +29,7 @@ const FavoritesList = forwardRef(({
     endIndex: 0
   });
   const loadTimeoutRef = useRef(null);
+  const selectionRequestRef = useRef(0);
   const onScrollStateChangeRef = useRef(onScrollStateChange);
   const snap = useSnapshot(navigationStore);
   const favSnap = useSnapshot(favoritesStore);
@@ -34,6 +38,7 @@ const FavoritesList = forwardRef(({
   const settings = useSnapshot(settingsStore);
   const showIndex = settings.showListIndex !== false;
   const selectedIdSet = useMemo(() => new Set(favSnap.selectedEntries.map(entry => entry.id)), [favSnap.selectedEntries]);
+  const selectedOrderMap = useMemo(() => new Map(favSnap.selectedEntries.map((entry, order) => [entry.id, order + 1])), [favSnap.selectedEntries]);
   const itemsArray = useMemo(() => {
     return Array.from({
       length: favSnap.totalCount
@@ -98,7 +103,22 @@ const FavoritesList = forwardRef(({
     collisionDetection
   } = useSortableList({
     items: itemsWithId,
-    onDragEnd: handleDragEnd
+    onDragEnd: handleDragEnd,
+    restrictToVertical: false,
+  });
+
+  const {
+    showSafeZones,
+    prepareExternalDrag,
+    shouldCancelDndDrop,
+    handleDndDragStart,
+    handleDndDragEnd,
+    handleDndDragCancel,
+  } = useExternalDragSwitch({
+    onDragStart: handleDragStart,
+    onDragEnd,
+    onDragCancel: handleDragCancel,
+    closePreview: () => closePreviewWindow().catch(() => { }),
   });
 
   const activeIndex = activeItem ? itemsWithId.findIndex(item => item._sortId === activeId || item.id === activeId) : -1;
@@ -177,38 +197,37 @@ const FavoritesList = forwardRef(({
     }
     navigationStore.resetNavigation();
     onScrollStateChangeRef.current?.({ atTop: true });
-  }, [favSnap.filter, favSnap.contentType, groupsSnap.currentGroup, scrollerElement]);
+  }, [favSnap.filter, favSnap.contentType, favSnap.pasteStatus, groupsSnap.currentGroup, scrollerElement]);
 
-  const ensureRangeLoaded = useCallback(async (startIndex, endIndex) => {
-    const missingIndexes = [];
-    for (let index = startIndex; index <= endIndex; index += 1) {
-      if (!favoritesStore.hasItem(index)) {
-        missingIndexes.push(index);
+  const loadSelectionEntries = useCallback(async (startIndex, endIndex) => {
+    const entries = [];
+
+    for (let offset = startIndex; offset <= endIndex; offset += SELECTION_LOAD_PAGE_SIZE) {
+      const limit = Math.min(SELECTION_LOAD_PAGE_SIZE, endIndex - offset + 1);
+      const result = await getFavoritesHistory({
+        offset,
+        limit,
+        groupName: groupsSnap.currentGroup,
+        contentType: favSnap.contentType !== 'all' ? favSnap.contentType : undefined,
+        search: favSnap.filter || undefined,
+      });
+
+      result.items.forEach((item, itemOffset) => {
+        if (!item?.id) return;
+        entries.push({
+          id: item.id,
+          index: offset + itemOffset,
+          contentType: item.content_type,
+        });
+      });
+
+      if (result.items.length < limit) {
+        break;
       }
     }
 
-    if (!missingIndexes.length) {
-      return;
-    }
-
-    const loadStart = Math.max(0, startIndex - LIST_PRELOAD_PADDING);
-    const loadEnd = Math.min(favSnap.totalCount - 1, endIndex + LIST_PRELOAD_PADDING);
-    await loadFavoritesRange(loadStart, loadEnd, groupsSnap.currentGroup);
-  }, [favSnap.totalCount, groupsSnap.currentGroup]);
-
-  const buildSelectionEntries = useCallback((startIndex, endIndex) => {
-    const entries = [];
-    for (let index = startIndex; index <= endIndex; index += 1) {
-      const item = favoritesStore.getItem(index);
-      if (!item?.id) continue;
-      entries.push({
-        id: item.id,
-        index,
-        contentType: item.content_type,
-      });
-    }
     return entries;
-  }, []);
+  }, [favSnap.contentType, favSnap.filter, groupsSnap.currentGroup]);
 
   const handleItemClick = useCallback(async (item, index, event) => {
     if (settings.modifierClickMultiSelect === false) {
@@ -218,12 +237,17 @@ const FavoritesList = forwardRef(({
     const isCtrlLikePressed = Boolean(event?.ctrlKey || event?.metaKey);
     const isShiftPressed = Boolean(event?.shiftKey);
 
-    if (!isMultiSelectMode) {
+    const currentlyMultiSelect = favoritesStore.isMultiSelectMode;
+    if (!currentlyMultiSelect) {
       if (!isCtrlLikePressed && !isShiftPressed) {
         return false;
       }
 
-      favoritesStore.enterMultiSelectMode();
+      favoritesStore.enterMultiSelectMode({
+        id: item.id,
+        index,
+        contentType: item.content_type,
+      });
 
       if (isShiftPressed) {
         const anchorIndex = typeof currentSelectedIndex === 'number' && currentSelectedIndex >= 0
@@ -231,37 +255,50 @@ const FavoritesList = forwardRef(({
           : index;
         const startIndex = Math.min(anchorIndex, index);
         const endIndex = Math.max(anchorIndex, index);
-        await ensureRangeLoaded(startIndex, endIndex);
-        favoritesStore.selectRange(buildSelectionEntries(startIndex, endIndex));
+        // 先同步记录锚点，避免范围加载期间的下一次 Shift 点击被当成普通追加选择。
         favoritesStore.setSelectionAnchorIndex(anchorIndex);
+        const requestId = ++selectionRequestRef.current;
+        const entries = await loadSelectionEntries(startIndex, endIndex);
+        if (requestId === selectionRequestRef.current) {
+          favoritesStore.selectRange(anchorIndex > index ? entries.reverse() : entries);
+        }
         return true;
       }
 
-      favoritesStore.toggleSelectedEntry({
-        id: item.id,
-        index,
-        contentType: item.content_type,
-      });
       favoritesStore.setSelectionAnchorIndex(index);
       return true;
     }
 
-    if (isShiftPressed && typeof favSnap.selectionAnchorIndex === 'number') {
-      const startIndex = Math.min(favSnap.selectionAnchorIndex, index);
-      const endIndex = Math.max(favSnap.selectionAnchorIndex, index);
-      await ensureRangeLoaded(startIndex, endIndex);
-      favoritesStore.selectRange(buildSelectionEntries(startIndex, endIndex));
+    const selectionAnchorIndex = favoritesStore.selectionAnchorIndex;
+    if (isShiftPressed && typeof selectionAnchorIndex === 'number') {
+      const startIndex = Math.min(selectionAnchorIndex, index);
+      const endIndex = Math.max(selectionAnchorIndex, index);
+      const requestId = ++selectionRequestRef.current;
+      const entries = await loadSelectionEntries(startIndex, endIndex);
+      if (requestId === selectionRequestRef.current) {
+        favoritesStore.selectRange(selectionAnchorIndex > index ? entries.reverse() : entries);
+      }
       return true;
     }
 
-    favoritesStore.toggleSelectedEntry({
+    selectionRequestRef.current += 1;
+
+    const entry = {
       id: item.id,
       index,
       contentType: item.content_type,
-    });
+    };
+    if (isCtrlLikePressed) {
+      favoritesStore.toggleSelectedEntry(entry);
+    } else if (favoritesStore.selectedEntries.length === 1 && favoritesStore.hasSelectedId(entry.id)) {
+      favoritesStore.toggleSelectedEntry(entry);
+    } else {
+      // 多选模式下普通单击改为单选当前项，符合常见文件管理器行为。
+      favoritesStore.replaceSelection([entry]);
+    }
     favoritesStore.setSelectionAnchorIndex(index);
     return true;
-  }, [buildSelectionEntries, currentSelectedIndex, ensureRangeLoaded, favSnap.selectionAnchorIndex, isMultiSelectMode, settings.modifierClickMultiSelect]);
+  }, [currentSelectedIndex, loadSelectionEntries, settings.modifierClickMultiSelect]);
 
   const handleRangeChanged = useCallback(({
     startIndex,
@@ -368,7 +405,8 @@ const FavoritesList = forwardRef(({
     marginBottom: `${cardSpacingPx}px`
   } : undefined;
   
-  return <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={handleDragStart} onDragEnd={onDragEnd} onDragCancel={handleDragCancel} modifiers={modifiers}>
+  return <DndContext sensors={sensors} collisionDetection={collisionDetection} onDragStart={handleDndDragStart} onDragEnd={handleDndDragEnd} onDragCancel={handleDndDragCancel} cancelDrop={shouldCancelDndDrop} modifiers={[]}>
+    <ExternalDragSafeZones visible={showSafeZones} />
       <div className="flex-1 bg-qc-surface overflow-hidden custom-scrollbar-container transition-colors duration-500 favorites-list" data-no-drag>
         <SortableContext items={itemsWithId.map(item => item._sortId)} strategy={strategy}>
           <Virtuoso ref={virtuosoRef} totalCount={favSnap.totalCount || 0} scrollerRef={scrollerRefCallback} atTopStateChange={atTop => {
@@ -408,6 +446,7 @@ const FavoritesList = forwardRef(({
                     sortId={entry._sortId}
                     isSelected={!isMultiSelectMode && currentSelectedIndex === index}
                     isMultiSelected={selectedIdSet.has(item.id)}
+                    selectionNumber={selectedOrderMap.get(item.id)}
                     isMultiSelectMode={isMultiSelectMode}
                     onHover={() => handleItemHover(index)}
                     onClick={handleItemClick}
@@ -415,6 +454,7 @@ const FavoritesList = forwardRef(({
                     isDragActive={!isMultiSelectMode && dragActive}
                     showIndex={showIndex}
                     animationDelay={animationDelay}
+                    onPrepareExternalDrag={prepareExternalDrag}
                   />
                 </div>
               </div> : <div className={heightClass}>
@@ -423,7 +463,8 @@ const FavoritesList = forwardRef(({
                   index={index}
                   sortId={entry._sortId}
                   isSelected={!isMultiSelectMode && currentSelectedIndex === index}
-                  isMultiSelected={selectedIdSet.has(item.id)}
+                    isMultiSelected={selectedIdSet.has(item.id)}
+                    selectionNumber={selectedOrderMap.get(item.id)}
                   isMultiSelectMode={isMultiSelectMode}
                   onHover={() => handleItemHover(index)}
                   onClick={handleItemClick}
@@ -431,6 +472,7 @@ const FavoritesList = forwardRef(({
                   isDragActive={!isMultiSelectMode && dragActive}
                   showIndex={showIndex}
                   animationDelay={animationDelay}
+                  onPrepareExternalDrag={prepareExternalDrag}
                 />
               </div>;
         }} isScrolling={handleVirtuosoScrollState} style={{
@@ -439,7 +481,7 @@ const FavoritesList = forwardRef(({
         </SortableContext>
       </div>
 
-      <DragOverlay dropAnimation={null}>
+      <DragOverlay dropAnimation={null} modifiers={[]} zIndex={1200}>
         {activeItem && activeIndex !== -1 && (() => {
           const overlayClass = settings.rowHeight === 'auto' ? 'h-auto' : heightClass;
           return (
@@ -449,7 +491,7 @@ const FavoritesList = forwardRef(({
                 index={activeIndex}
                 sortId={activeItem._sortId}
                 isDragActive={!isMultiSelectMode}
-                isDraggable={!isMultiSelectMode}
+                isDraggable={false}
                 showIndex={showIndex}
               />
             </div>

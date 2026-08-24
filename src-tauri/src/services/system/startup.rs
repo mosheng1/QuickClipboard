@@ -1,25 +1,14 @@
 use std::env;
+use std::ffi::OsStr;
 
-pub const AUTO_START_ARG: &str = "--autostart";
 pub const ADMIN_RELAUNCH_ARG: &str = "--admin-relaunch";
 pub const UNINSTALL_CLEANUP_ARG: &str = "--uninstall-cleanup";
+const LEGACY_AUTO_START_ARG: &str = "--autostart";
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct StartupLaunchContext {
-    pub from_auto_start: bool,
-    pub admin_relaunch: bool,
-}
-
-pub fn launch_context() -> StartupLaunchContext {
-    let mut context = StartupLaunchContext::default();
-    for argument in env::args().skip(1) {
-        match argument.as_str() {
-            AUTO_START_ARG => context.from_auto_start = true,
-            ADMIN_RELAUNCH_ARG => context.admin_relaunch = true,
-            _ => {}
-        }
-    }
-    context
+pub fn is_admin_relaunch() -> bool {
+    env::args()
+        .skip(1)
+        .any(|argument| argument == ADMIN_RELAUNCH_ARG)
 }
 
 pub fn is_uninstall_cleanup_requested() -> bool {
@@ -28,9 +17,53 @@ pub fn is_uninstall_cleanup_requested() -> bool {
         .any(|argument| argument == UNINSTALL_CLEANUP_ARG)
 }
 
+pub fn restart_after_legacy_auto_start() -> Result<bool, String> {
+    let arguments: Vec<_> = env::args_os().skip(1).collect();
+    if !arguments
+        .iter()
+        .any(|argument| is_legacy_auto_start_argument(argument))
+    {
+        return Ok(false);
+    }
+
+    let executable =
+        env::current_exe().map_err(|error| format!("获取当前程序路径失败: {error}"))?;
+    let mut command = std::process::Command::new(&executable);
+    command.args(
+        arguments
+            .iter()
+            .filter(|argument| !is_legacy_auto_start_argument(argument)),
+    );
+    if let Some(directory) = executable.parent() {
+        command.current_dir(directory);
+    }
+    command
+        .spawn()
+        .map_err(|error| format!("重新启动以迁移旧自启动配置失败: {error}"))?;
+
+    Ok(true)
+}
+
+fn is_legacy_auto_start_argument(argument: &OsStr) -> bool {
+    argument == OsStr::new(LEGACY_AUTO_START_ARG)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn legacy_auto_start_argument_is_detected() {
+        assert!(is_legacy_auto_start_argument(OsStr::new("--autostart")));
+        assert!(!is_legacy_auto_start_argument(OsStr::new(
+            "--admin-relaunch"
+        )));
+    }
+}
+
 #[cfg(target_os = "windows")]
 mod platform {
-    use super::{ADMIN_RELAUNCH_ARG, AUTO_START_ARG};
+    use super::ADMIN_RELAUNCH_ARG;
     use sha2::{Digest, Sha256};
     use std::collections::HashSet;
     use std::env;
@@ -362,7 +395,8 @@ mod platform {
         if path.contains('"') || path.contains('\0') {
             return Err("程序路径包含 Windows 启动项不支持的字符".to_string());
         }
-        Ok(format!("\"{path}\" {AUTO_START_ARG}"))
+
+        Ok(format!("\"{path}\""))
     }
 
     fn startup_approved_enabled(bytes: &[u8]) -> bool {
@@ -654,7 +688,7 @@ mod platform {
 
     fn admin_task_arguments(auto_start: bool) -> String {
         if auto_start {
-            format!("{ADMIN_RELAUNCH_ARG} {AUTO_START_ARG}")
+            String::new()
         } else {
             ADMIN_RELAUNCH_ARG.to_string()
         }
@@ -778,18 +812,18 @@ mod platform {
         use super::*;
 
         #[test]
-        fn registry_command_quotes_paths_and_preserves_unicode() {
+        fn registry_command_quotes_paths_without_startup_arguments() {
             let path = Path::new(r"C:\程序 文件\QuickClipboard.exe");
             assert_eq!(
                 expected_registry_command(path).unwrap(),
-                r#""C:\程序 文件\QuickClipboard.exe" --autostart"#
+                r#""C:\程序 文件\QuickClipboard.exe""#
             );
         }
 
         #[test]
-        fn admin_task_arguments_match_trigger_mode() {
+        fn admin_task_only_marks_manual_relaunch() {
             assert_eq!(admin_task_arguments(false), "--admin-relaunch");
-            assert_eq!(admin_task_arguments(true), "--admin-relaunch --autostart");
+            assert!(admin_task_arguments(true).is_empty());
         }
 
         #[test]

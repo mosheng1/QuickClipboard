@@ -53,6 +53,13 @@ pub fn run() {
         }
     }
 
+    #[cfg(windows)]
+    match services::system::startup::restart_after_legacy_auto_start() {
+        Ok(true) => return,
+        Ok(false) => {}
+        Err(error) => eprintln!("迁移旧自启动参数失败: {error}"),
+    }
+
     startup_diagnostics::set_startup_stage("执行启动安全检查");
     startup_diagnostics::mark_starting();
     security::check_webview_security();
@@ -62,26 +69,6 @@ pub fn run() {
     }
     #[cfg(windows)]
     {
-        use std::process::Command;
-        startup_diagnostics::set_startup_stage("处理安装器启动参数");
-        let args: Vec<String> = std::env::args().collect();
-        let is_installer_launch = args.iter().any(|a| a == "--installer-launch");
-        let already_restarted = args.iter().any(|a| a == "--qc-restarted");
-        if is_installer_launch && !already_restarted {
-            if let Ok(exe) = std::env::current_exe() {
-                let mut cmd = Command::new(exe);
-                for a in std::env::args().skip(1) {
-                    if a == "--installer-launch" {
-                        continue;
-                    }
-                    cmd.arg(a);
-                }
-                cmd.arg("--qc-restarted");
-                let _ = cmd.spawn();
-                std::process::exit(0);
-            }
-        }
-
         startup_diagnostics::set_startup_stage("检查启动与管理员配置");
         #[cfg(not(debug_assertions))]
         if let Ok(settings) = services::settings::load_settings_from_file() {
@@ -98,8 +85,7 @@ pub fn run() {
                         eprintln!("修复管理员启动配置失败: {error}");
                     }
                 } else {
-                    let launch_context = services::system::startup::launch_context();
-                    if launch_context.admin_relaunch {
+                    if services::system::startup::is_admin_relaunch() {
                         eprintln!("管理员重启后的进程仍未获得管理员权限，已停止重复提权");
                     } else {
                         startup_diagnostics::set_startup_stage(
@@ -133,14 +119,10 @@ pub fn run() {
                 let _ = services::low_memory::toggle_panel();
                 return;
             }
-            let is_background_launch = argv.iter().any(|argument| {
-                matches!(
-                    argument.as_str(),
-                    services::system::startup::AUTO_START_ARG
-                        | services::system::startup::ADMIN_RELAUNCH_ARG
-                )
-            });
-            if is_background_launch {
+            let is_admin_relaunch = argv
+                .iter()
+                .any(|argument| argument == services::system::startup::ADMIN_RELAUNCH_ARG);
+            if is_admin_relaunch {
                 return;
             }
             match services::low_memory::ensure_main_window(app) {
@@ -188,6 +170,7 @@ pub fn run() {
             commands::drop_proxy::drop_proxy_save_resource,
             commands::drop_proxy::drop_proxy_save_url,
             commands::drop_proxy::drop_proxy_cleanup_orphan_resources,
+            commands::text_drag::start_text_drag,
             windows::preview_window::show_preview_window,
             windows::preview_window::close_preview_window,
             windows::preview_window::reveal_preview_window,

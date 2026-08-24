@@ -26,7 +26,7 @@ pub fn start_focus_listener(app_handle: tauri::AppHandle) {
         }
 
         let mut excluded = Vec::new();
-        for label in ["main", "context-menu", "settings", "preview"] {
+        for label in ["main", "context-menu", "preview"] {
             if let Some(win) = app_handle.get_webview_window(label) {
                 if let Ok(hwnd) = win.hwnd() {
                     excluded.push(hwnd.0 as isize);
@@ -65,7 +65,9 @@ pub fn add_excluded_hwnd(hwnd: isize) {
 pub fn focus_clipboard_window(window: WebviewWindow) -> Result<(), String> {
     window
         .set_focus()
-        .map_err(|e| format!("设置窗口焦点失败: {}", e))
+        .map_err(|e| format!("设置窗口焦点失败: {}", e))?;
+    crate::hotkey::suspend_execute_item_hotkey();
+    Ok(())
 }
 
 // 仅保存当前焦点（手动）
@@ -86,11 +88,13 @@ pub fn restore_last_focus() -> Result<(), String> {
                 let _ = SetForegroundWindow(HWND(hwnd_val as *mut c_void));
             }
         }
+        crate::hotkey::resume_execute_item_hotkey();
         Ok(())
     }
 
     #[cfg(not(windows))]
     {
+        crate::hotkey::resume_execute_item_hotkey();
         Ok(())
     }
 }

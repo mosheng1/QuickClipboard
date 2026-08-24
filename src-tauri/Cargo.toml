@@ -1,6 +1,6 @@
 [package]
 name = "QuickClipboard"
-version = "0.4.2"
+version = "0.5.0"
 description = "一个功能强大的剪贴板管理工具，帮助您更高效地管理和使用剪贴板内容"
 authors = ["MoSheng"]
 edition = "2021"
@@ -86,10 +86,14 @@ windows = { version = "0.62", features = [
     "Win32_Security",
     "Win32_System_Console",
     "Win32_System_Com",
+    "Win32_System_Com_StructuredStorage",
     "Win32_System_Ole",
+    "Win32_System_SystemServices",
+    "Win32_Graphics_Gdi",
     "Win32_System_TaskScheduler",
     "Win32_System_Variant",
 ] }
+windows-core = "0.62"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 keyring = { version = "3.6.3", features = ["apple-native"] }

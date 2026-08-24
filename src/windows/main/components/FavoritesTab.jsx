@@ -2,7 +2,6 @@ import { useRef, forwardRef, useImperativeHandle, useEffect, useState, useCallba
 import { useSnapshot } from 'valtio';
 import { listen } from '@tauri-apps/api/event';
 import { favoritesStore, refreshFavorites } from '@shared/store';
-import { navigationStore } from '@shared/store/navigationStore';
 import { groupsStore } from '@shared/store/groupsStore';
 import { settingsStore } from '@shared/store/settingsStore';
 import { openBlankEditor } from '@shared/api/textEditor';
@@ -12,6 +11,7 @@ import FloatingToolbar from './FloatingToolbar';
 const SEARCH_DEBOUNCE_DELAY = 200;
 const FavoritesTab = forwardRef(({
   contentFilter,
+  pasteFilter = 'all',
   searchQuery
 }, ref) => {
   const snap = useSnapshot(favoritesStore);
@@ -29,16 +29,12 @@ const FavoritesTab = forwardRef(({
     searchDebounceRef.current = setTimeout(() => {
       favoritesStore.setFilter(query);
       refreshFavorites();
-      if (query) {
-        navigationStore.setSelectedIndex(0);
-      } else {
-        navigationStore.resetNavigation();
-      }
     }, query ? SEARCH_DEBOUNCE_DELAY : 0);
   }, []);
 
   useEffect(() => {
     favoritesStore.setContentType(contentFilter);
+    favoritesStore.setPasteStatus(pasteFilter);
     debouncedSearch(searchQuery, contentFilter);
     
     return () => {
@@ -46,7 +42,7 @@ const FavoritesTab = forwardRef(({
         clearTimeout(searchDebounceRef.current);
       }
     };
-  }, [searchQuery, contentFilter, debouncedSearch]);
+  }, [searchQuery, contentFilter, pasteFilter, debouncedSearch]);
 
   useEffect(() => {
     if (snap.totalCount > prevTotalCountRef.current) {

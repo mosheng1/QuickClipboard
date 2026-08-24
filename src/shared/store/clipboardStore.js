@@ -28,10 +28,11 @@ function nextClipboardRequestVersion() {
   return clipboardRequestVersion
 }
 
-function isClipboardRequestCurrent(version, filter, contentType) {
+function isClipboardRequestCurrent(version, filter, contentType, pasteStatus) {
   return version === clipboardRequestVersion
     && clipboardStore.filter === filter
     && clipboardStore.contentType === contentType
+    && clipboardStore.pasteStatus === pasteStatus
 }
 
 // 剪贴板 Store
@@ -40,6 +41,7 @@ export const clipboardStore = proxy({
   totalCount: 0,
   filter: '',
   contentType: 'all',
+  pasteStatus: 'all',
   selectedIds: new Set(),
   selectedEntries: [],
   isMultiSelectMode: false,
@@ -214,7 +216,6 @@ export const clipboardStore = proxy({
           }
           return entry
         })
-        .sort((a, b) => a.index - b.index)
     }
 
     return true
@@ -296,7 +297,6 @@ export const clipboardStore = proxy({
             ? { ...entry, index: entry.index + 1 }
             : entry
         })
-        .sort((a, b) => a.index - b.index)
     }
 
     const { start, end } = this.currentViewRange
@@ -336,12 +336,23 @@ export const clipboardStore = proxy({
       this.exitMultiSelectMode()
     }
   },
+
+  setPasteStatus(value) {
+    if (this.pasteStatus !== value) {
+      nextClipboardRequestVersion()
+      this.pasteStatus = value
+      this.items = {}
+      this.loadingRanges = new Set()
+      this.exitMultiSelectMode()
+    }
+  },
   
-  enterMultiSelectMode() {
+  enterMultiSelectMode(entry = null) {
+    if (!entry?.id) return false
     this.isMultiSelectMode = true
-    this.selectedEntries = []
-    this.selectedIds = new Set()
-    this.selectionAnchorIndex = null
+    this.replaceSelection([entry])
+    this.selectionAnchorIndex = entry.index
+    return true
   },
 
   exitMultiSelectMode() {
@@ -377,7 +388,6 @@ export const clipboardStore = proxy({
       uniqueEntries.push(this.normalizeSelectedEntry(entry))
     }
 
-    uniqueEntries.sort((a, b) => a.index - b.index)
     this.selectedEntries = uniqueEntries
     this.selectedIds = new Set(uniqueEntries.map(entry => entry.id))
   },
@@ -386,7 +396,11 @@ export const clipboardStore = proxy({
     const normalizedEntry = this.normalizeSelectedEntry(entry)
     const exists = this.selectedEntries.some(selected => selected.id === normalizedEntry.id)
     if (exists) {
-      this.replaceSelection(this.selectedEntries.filter(selected => selected.id !== normalizedEntry.id))
+      if (this.selectedEntries.length === 1) {
+        this.exitMultiSelectMode()
+      } else {
+        this.replaceSelection(this.selectedEntries.filter(selected => selected.id !== normalizedEntry.id))
+      }
       return
     }
 
@@ -394,13 +408,11 @@ export const clipboardStore = proxy({
   },
 
   selectRange(entries) {
-    this.replaceSelection([...this.selectedEntries, ...entries])
+    this.replaceSelection(entries)
   },
 
   getSelectedIds() {
-    return [...this.selectedEntries]
-      .sort((a, b) => a.index - b.index)
-      .map(entry => entry.id)
+    return this.selectedEntries.map(entry => entry.id)
   },
 
   toggleSelect(id) {
@@ -454,8 +466,9 @@ export async function loadClipboardRange(startIndex, endIndex, requestContext = 
   const requestVersion = requestContext?.version ?? clipboardRequestVersion
   const requestFilter = requestContext?.filter ?? clipboardStore.filter
   const requestContentType = requestContext?.contentType ?? clipboardStore.contentType
+  const requestPasteStatus = requestContext?.pasteStatus ?? clipboardStore.pasteStatus
 
-  if (!isClipboardRequestCurrent(requestVersion, requestFilter, requestContentType)) {
+  if (!isClipboardRequestCurrent(requestVersion, requestFilter, requestContentType, requestPasteStatus)) {
     return
   }
 
@@ -490,10 +503,11 @@ export async function loadClipboardRange(startIndex, endIndex, requestContext = 
       offset: startIndex,
       limit,
       contentType: requestContentType !== 'all' ? requestContentType : undefined,
+      pasteStatus: requestPasteStatus,
       search: requestFilter || undefined
     })
 
-    if (!isClipboardRequestCurrent(requestVersion, requestFilter, requestContentType)) {
+    if (!isClipboardRequestCurrent(requestVersion, requestFilter, requestContentType, requestPasteStatus)) {
       return
     }
     
@@ -505,12 +519,12 @@ export async function loadClipboardRange(startIndex, endIndex, requestContext = 
       clipboardStore.totalCount = result.total_count
     }
   } catch (err) {
-    if (isClipboardRequestCurrent(requestVersion, requestFilter, requestContentType)) {
+    if (isClipboardRequestCurrent(requestVersion, requestFilter, requestContentType, requestPasteStatus)) {
       console.error(`加载范围 ${startIndex}-${endIndex} 失败:`, err)
       clipboardStore.error = err.message || '加载失败'
     }
   } finally {
-    if (isClipboardRequestCurrent(requestVersion, requestFilter, requestContentType)) {
+    if (isClipboardRequestCurrent(requestVersion, requestFilter, requestContentType, requestPasteStatus)) {
       clipboardStore.removeLoadingRange(startIndex, endIndex)
     }
   }
@@ -525,6 +539,7 @@ export async function initClipboardItems() {
   const requestVersion = nextClipboardRequestVersion()
   const requestFilter = clipboardStore.filter
   const requestContentType = clipboardStore.contentType
+  const requestPasteStatus = clipboardStore.pasteStatus
 
   clipboardStore.loading = true
   clipboardStore.error = null
@@ -533,15 +548,16 @@ export async function initClipboardItems() {
     clipboardStore.items = {}
     clipboardStore.loadingRanges = new Set()
     
-    if (requestContentType !== 'all' || requestFilter) {
+    if (requestContentType !== 'all' || requestFilter || requestPasteStatus !== 'all') {
       const result = await getClipboardHistory({
         offset: 0,
         limit: 100,
         contentType: requestContentType !== 'all' ? requestContentType : undefined,
+        pasteStatus: requestPasteStatus,
         search: requestFilter || undefined
       })
 
-      if (!isClipboardRequestCurrent(requestVersion, requestFilter, requestContentType)) {
+      if (!isClipboardRequestCurrent(requestVersion, requestFilter, requestContentType, requestPasteStatus)) {
         return
       }
       
@@ -550,7 +566,7 @@ export async function initClipboardItems() {
     } else {
       const totalCount = await getClipboardTotalCount()
 
-      if (!isClipboardRequestCurrent(requestVersion, requestFilter, requestContentType)) {
+      if (!isClipboardRequestCurrent(requestVersion, requestFilter, requestContentType, requestPasteStatus)) {
         return
       }
 
@@ -562,16 +578,17 @@ export async function initClipboardItems() {
           version: requestVersion,
           filter: requestFilter,
           contentType: requestContentType,
+          pasteStatus: requestPasteStatus,
         })
       }
     }
   } catch (err) {
-    if (isClipboardRequestCurrent(requestVersion, requestFilter, requestContentType)) {
+    if (isClipboardRequestCurrent(requestVersion, requestFilter, requestContentType, requestPasteStatus)) {
       console.error('初始化剪贴板失败:', err)
       clipboardStore.error = err.message || '加载失败'
     }
   } finally {
-    if (isClipboardRequestCurrent(requestVersion, requestFilter, requestContentType)) {
+    if (isClipboardRequestCurrent(requestVersion, requestFilter, requestContentType, requestPasteStatus)) {
       clipboardStore.loading = false
     }
   }

@@ -4,12 +4,13 @@ import { getOneTimePasteEnabled } from '@shared/services/oneTimePaste'
 
 // 分页查询收藏列表
 export async function getFavoritesHistory(params = {}) {
-  const { offset = 0, limit = 50, groupName, search, contentType } = params
+  const { offset = 0, limit = 50, groupName, search, contentType, pasteStatus } = params
 
   const invokeParams = { offset, limit }
   if (groupName && groupName !== '全部') invokeParams.groupName = groupName
   if (search) invokeParams.search = search
   if (contentType) invokeParams.contentType = contentType
+  if (pasteStatus && pasteStatus !== 'all') invokeParams.pasteStatus = pasteStatus
 
   return await invoke('get_favorites_history', invokeParams)
 }
