@@ -187,8 +187,7 @@ fn set_clipboard_image_file_impl(path: &str) -> Result<(), String> {
 
     impl ClipboardSession {
         fn open() -> Result<Self, String> {
-            unsafe { OpenClipboard(None) }
-                .map_err(|e| format!("打开剪贴板失败: {}", e))?;
+            unsafe { OpenClipboard(None) }.map_err(|e| format!("打开剪贴板失败: {}", e))?;
             Ok(Self)
         }
     }
@@ -244,7 +243,8 @@ fn build_dib_data(image: &image::DynamicImage) -> Result<Vec<u8>, String> {
     let pixel_data_size = width
         .checked_mul(height)
         .and_then(|value| value.checked_mul(4))
-        .ok_or_else(|| "图片尺寸过大，无法生成 DIB 数据".to_string())? as usize;
+        .ok_or_else(|| "图片尺寸过大，无法生成 DIB 数据".to_string())?
+        as usize;
     let mut data = Vec::with_capacity(40 + pixel_data_size);
 
     data.extend_from_slice(&40u32.to_le_bytes());

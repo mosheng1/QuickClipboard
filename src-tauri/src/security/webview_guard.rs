@@ -27,17 +27,17 @@ const DANGEROUS_PATTERNS: &[(&str, &str)] = &[
 fn check_dangerous_webview2_args() -> Option<String> {
     let args = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").ok()?;
     let args_lower = args.to_lowercase();
-    
+
     let detected: Vec<String> = DANGEROUS_PATTERNS
         .iter()
         .filter(|(pattern, _)| args_lower.contains(&pattern.to_lowercase()))
         .map(|(pattern, desc)| format!("• {} ({})", pattern, desc))
         .collect();
-    
+
     if detected.is_empty() {
         return None;
     }
-    
+
     Some(format!(
         "环境变量: WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS\n\n检测到的危险参数:\n{}",
         detected.join("\n")
@@ -47,17 +47,19 @@ fn check_dangerous_webview2_args() -> Option<String> {
 // 显示安全警告对话框
 #[cfg(windows)]
 fn show_security_warning(warning: &str) {
-    use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_OK, MB_ICONWARNING};
     use windows::core::PCWSTR;
-    
+    use windows::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONWARNING, MB_OK};
+
     let title: Vec<u16> = "安全警告 - QuickClipboard\0".encode_utf16().collect();
     let message: Vec<u16> = format!(
         "检测到可能影响应用安全的环境变量配置：\n\n{}\n\n\
         为保护您的数据安全，应用将退出。\n\n\
         如需正常使用，请移除相关环境变量后重新启动。\0",
         warning
-    ).encode_utf16().collect();
-    
+    )
+    .encode_utf16()
+    .collect();
+
     unsafe {
         MessageBoxW(
             None,

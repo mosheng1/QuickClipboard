@@ -1,10 +1,13 @@
+use once_cell::sync::OnceCell;
 use serde_json::json;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Mutex;
-use std::collections::HashMap;
-use once_cell::sync::OnceCell;
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Manager, WebviewWindow, WebviewWindowBuilder, Size, LogicalSize, PhysicalPosition, PhysicalSize};
+use tauri::{
+    AppHandle, LogicalSize, Manager, PhysicalPosition, PhysicalSize, Size, WebviewWindow,
+    WebviewWindowBuilder,
+};
 
 static PIN_IMAGE_COUNTER: AtomicUsize = AtomicUsize::new(0);
 static PIN_IMAGE_DATA_MAP: OnceCell<Mutex<HashMap<String, PinImageData>>> = OnceCell::new();
@@ -19,8 +22,8 @@ struct PinImageData {
     preview_mode: bool,
     image_physical_x: Option<i32>,
     image_physical_y: Option<i32>,
-    original_image_path: Option<String>, 
-    edit_data: Option<String>,           
+    original_image_path: Option<String>,
+    edit_data: Option<String>,
 }
 
 pub fn init_pin_image_window() {
@@ -40,7 +43,7 @@ pub fn update_pin_image_file(label: &str, new_file_path: String) {
 
 // 更新贴图图片数据
 pub fn update_pin_image_data(
-    label: &str, 
+    label: &str,
     new_file_path: String,
     original_image_path: Option<String>,
     edit_data: Option<String>,
@@ -54,7 +57,6 @@ pub fn update_pin_image_data(
         }
     }
 }
-
 
 // 从文件路径创建贴图窗口
 #[tauri::command]
@@ -75,38 +77,59 @@ pub async fn pin_image_from_file(
 ) -> Result<(), String> {
     let is_preview = preview_mode.unwrap_or(false);
     let use_physical_coords = image_physical_x.is_some() && image_physical_y.is_some();
-    
+
     let (img_width, img_height, pos_x, pos_y) = if is_preview {
         let (orig_w, orig_h) = read_image_logical_size(&file_path, &app)?;
         let (img_w, img_h) = scale_for_preview(orig_w, orig_h, &app);
-        
+
         let (cursor_x, cursor_y) = crate::mouse::get_cursor_position();
-        let (mon_x, mon_y, mon_right, mon_bottom, scale_factor) = crate::utils::screen::ScreenUtils::get_monitor_at_cursor(&app)
-            .map(|m| {
-                let pos = m.position();
-                let size = m.size();
-                (pos.x, pos.y, pos.x + size.width as i32, pos.y + size.height as i32, m.scale_factor())
-            })
-            .unwrap_or((0, 0, 1920, 1080, 1.0));
-        
+        let (mon_x, mon_y, mon_right, mon_bottom, scale_factor) =
+            crate::utils::screen::ScreenUtils::get_monitor_at_cursor(&app)
+                .map(|m| {
+                    let pos = m.position();
+                    let size = m.size();
+                    (
+                        pos.x,
+                        pos.y,
+                        pos.x + size.width as i32,
+                        pos.y + size.height as i32,
+                        m.scale_factor(),
+                    )
+                })
+                .unwrap_or((0, 0, 1920, 1080, 1.0));
+
         let window_w = ((img_w as f64 + 10.0) * scale_factor).round() as i32;
         let window_h = ((img_h as f64 + 10.0) * scale_factor).round() as i32;
-        let px = if mon_right - cursor_x >= window_w { cursor_x } else { cursor_x - window_w };
-        let py = if mon_bottom - cursor_y >= window_h { cursor_y } else { cursor_y - window_h };
-        
+        let px = if mon_right - cursor_x >= window_w {
+            cursor_x
+        } else {
+            cursor_x - window_w
+        };
+        let py = if mon_bottom - cursor_y >= window_h {
+            cursor_y
+        } else {
+            cursor_y - window_h
+        };
+
         (img_w, img_h, px.max(mon_x), py.max(mon_y))
     } else if use_physical_coords {
         let img_x = image_physical_x.unwrap();
         let img_y = image_physical_y.unwrap();
         let img_phys_w = image_physical_width.unwrap_or(100);
         let img_phys_h = image_physical_height.unwrap_or(100);
-        
-        let scale_factor = crate::utils::screen::ScreenUtils::get_scale_factor_at_point(&app, img_x, img_y);
+
+        let scale_factor =
+            crate::utils::screen::ScreenUtils::get_scale_factor_at_point(&app, img_x, img_y);
         let padding = (5.0 * scale_factor).round() as i32;
         let logical_w = (img_phys_w as f64 / scale_factor).round() as u32;
         let logical_h = (img_phys_h as f64 / scale_factor).round() as u32;
-        
-        (logical_w.max(1), logical_h.max(1), img_x - padding, img_y - padding)
+
+        (
+            logical_w.max(1),
+            logical_h.max(1),
+            img_x - padding,
+            img_y - padding,
+        )
     } else if let (Some(px), Some(py)) = (x, y) {
         let (w, h) = if let (Some(w), Some(h)) = (width, height) {
             (w, h)
@@ -123,12 +146,15 @@ pub async fn pin_image_from_file(
         let (cx, cy) = center_position(&app, w, h);
         (w, h, cx, cy)
     };
-    
+
     // 生成窗口标签
     let window_label = if is_preview {
         "image-preview".to_string()
     } else {
-        format!("pin-image-{}", PIN_IMAGE_COUNTER.fetch_add(1, Ordering::SeqCst))
+        format!(
+            "pin-image-{}",
+            PIN_IMAGE_COUNTER.fetch_add(1, Ordering::SeqCst)
+        )
     };
 
     if is_preview {
@@ -139,7 +165,7 @@ pub async fn pin_image_from_file(
             }
         }
     }
-    
+
     // 存储图片数据
     let actual_original_path = original_image_path.or_else(|| Some(file_path.clone()));
     if let Some(data_map) = PIN_IMAGE_DATA_MAP.get() {
@@ -157,14 +183,19 @@ pub async fn pin_image_from_file(
             },
         );
     }
-    
-    let window = create_pin_image_window(&app, &window_label, img_width, img_height, pos_x, pos_y).await?;
-    
+
+    let window =
+        create_pin_image_window(&app, &window_label, img_width, img_height, pos_x, pos_y).await?;
+
     if is_preview {
-        window.set_ignore_cursor_events(true).map_err(|e| format!("设置鼠标穿透失败: {}", e))?;
+        window
+            .set_ignore_cursor_events(true)
+            .map_err(|e| format!("设置鼠标穿透失败: {}", e))?;
     }
-    
-    window.show().map_err(|e| format!("显示贴图窗口失败: {}", e))?;
+
+    window
+        .show()
+        .map_err(|e| format!("显示贴图窗口失败: {}", e))?;
     Ok(())
 }
 
@@ -174,15 +205,19 @@ fn read_image_logical_size(file_path: &str, app: &AppHandle) -> Result<(u32, u32
         .map_err(|e| format!("打开图片文件失败: {}", e))?
         .with_guessed_format()
         .map_err(|e| format!("识别图片格式失败: {}", e))?;
-    
-    let (w, h) = reader.into_dimensions()
+
+    let (w, h) = reader
+        .into_dimensions()
         .map_err(|e| format!("读取图片尺寸失败: {}", e))?;
-    
+
     let scale_factor = crate::utils::screen::ScreenUtils::get_monitor_at_cursor(app)
         .map(|m| m.scale_factor())
         .unwrap_or(1.0);
-    
-    Ok(((w as f64 / scale_factor).round() as u32, (h as f64 / scale_factor).round() as u32))
+
+    Ok((
+        (w as f64 / scale_factor).round() as u32,
+        (h as f64 / scale_factor).round() as u32,
+    ))
 }
 
 // 预览模式缩放
@@ -194,13 +229,16 @@ fn scale_for_preview(width: u32, height: u32, app: &AppHandle) -> (u32, u32) {
             ((size.height as f64 / sf / 2.0) as u32).min(DEFAULT_PREVIEW_SIZE)
         })
         .unwrap_or(DEFAULT_PREVIEW_SIZE);
-    
+
     let max_side = width.max(height);
     if max_side == 0 {
         (preview_size, preview_size)
     } else {
         let scale = preview_size as f64 / max_side as f64;
-        (((width as f64 * scale).round() as u32).max(1), ((height as f64 * scale).round() as u32).max(1))
+        (
+            ((width as f64 * scale).round() as u32).max(1),
+            ((height as f64 * scale).round() as u32).max(1),
+        )
     }
 }
 
@@ -212,12 +250,14 @@ fn center_position(app: &AppHandle, width: u32, height: u32) -> (i32, i32) {
         let sf = monitor.scale_factor();
         let win_w = ((width as f64 + 10.0) * sf).round() as i32;
         let win_h = ((height as f64 + 10.0) * sf).round() as i32;
-        (pos.x + (size.width as i32 - win_w) / 2, pos.y + (size.height as i32 - win_h) / 2)
+        (
+            pos.x + (size.width as i32 - win_w) / 2,
+            pos.y + (size.height as i32 - win_h) / 2,
+        )
     } else {
         (100, 100)
     }
 }
-
 
 // 创建贴图窗口
 async fn create_pin_image_window(
@@ -229,7 +269,8 @@ async fn create_pin_image_window(
     physical_y: i32,
 ) -> Result<WebviewWindow, String> {
     let window = WebviewWindowBuilder::new(
-        app, label,
+        app,
+        label,
         tauri::WebviewUrl::App("windows/pinImage/pinImage.html".into()),
     )
     .title("贴图")
@@ -243,14 +284,17 @@ async fn create_pin_image_window(
     .always_on_top(true)
     .skip_taskbar(true)
     .focused(false)
-    .visible(false)
-    .drag_and_drop(false)
-    .build()
-    .map_err(|e| format!("创建贴图窗口失败: {}", e))?;
-    
-    window.set_position(PhysicalPosition::new(physical_x, physical_y))
+    .visible(false);
+    #[cfg(windows)]
+    let window = window.drag_and_drop(false);
+    let window = window
+        .build()
+        .map_err(|e| format!("创建贴图窗口失败: {}", e))?;
+
+    window
+        .set_position(PhysicalPosition::new(physical_x, physical_y))
         .map_err(|e| format!("设置窗口位置失败: {}", e))?;
-    
+
     Ok(window)
 }
 
@@ -275,13 +319,12 @@ pub fn get_pin_image_data(window: WebviewWindow) -> Result<serde_json::Value, St
     Err("未找到图片数据".to_string())
 }
 
-
 // 图片另存为
 #[tauri::command]
 pub async fn save_pin_image_as(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
     use std::path::Path;
     use tauri_plugin_dialog::DialogExt;
-    
+
     let file_path = if let Some(data_map) = PIN_IMAGE_DATA_MAP.get() {
         let map = data_map.lock().unwrap();
         if let Some(data) = map.get(window.label()) {
@@ -292,30 +335,30 @@ pub async fn save_pin_image_as(app: AppHandle, window: WebviewWindow) -> Result<
     } else {
         return Err("未找到图片数据".to_string());
     };
-    
+
     let path = Path::new(&file_path);
     if !path.exists() {
         return Err("图片文件不存在".to_string());
     }
-    
-    let filename = format!("QC_{}.png", 
-        path.file_stem()
-            .and_then(|s| s.to_str())
-            .unwrap_or("image")
+
+    let filename = format!(
+        "QC_{}.png",
+        path.file_stem().and_then(|s| s.to_str()).unwrap_or("image")
     );
-    
-    let save_path = app.dialog().file()
+
+    let save_path = app
+        .dialog()
+        .file()
         .set_file_name(&filename)
         .add_filter("PNG 图片", &["png"])
         .add_filter("JPEG 图片", &["jpg", "jpeg"])
         .add_filter("所有文件", &["*"])
         .blocking_save_file()
         .ok_or("用户取消保存")?;
-    
+
     let dest = save_path.as_path().ok_or("无效的文件路径")?;
-    std::fs::copy(&file_path, dest)
-        .map_err(|e| format!("保存失败: {}", e))?;
-    
+    std::fs::copy(&file_path, dest).map_err(|e| format!("保存失败: {}", e))?;
+
     Ok(())
 }
 
@@ -338,7 +381,7 @@ pub fn close_image_preview(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 pub fn close_pin_image_window_by_self(window: WebviewWindow) -> Result<(), String> {
     let label = window.label().to_string();
-    
+
     if let Some(data_map) = PIN_IMAGE_DATA_MAP.get() {
         let mut map = data_map.lock().unwrap();
         if let Some(data) = map.remove(&label) {
@@ -352,24 +395,28 @@ pub fn close_pin_image_window_by_self(window: WebviewWindow) -> Result<(), Strin
             }
         }
     }
-    
+
     let _ = window.set_size(Size::Logical(LogicalSize::new(1.0, 1.0)));
     window.close().map_err(|e| format!("关闭窗口失败: {}", e))?;
-    
+
     Ok(())
 }
 
 #[tauri::command]
 pub fn animate_window_resize(
     window: WebviewWindow,
-    start_w: f64, start_h: f64,
-    start_x: i32, start_y: i32,
-    end_w: f64, end_h: f64,
-    end_x: i32, end_y: i32,
+    start_w: f64,
+    start_h: f64,
+    start_x: i32,
+    start_y: i32,
+    end_w: f64,
+    end_h: f64,
+    end_x: i32,
+    end_y: i32,
     duration_ms: u64,
 ) -> Result<(), String> {
     let window = window.clone();
-    
+
     tauri::async_runtime::spawn(async move {
         let start_time = Instant::now();
         let duration = Duration::from_millis(duration_ms);
@@ -389,7 +436,7 @@ pub fn animate_window_resize(
             }
 
             let progress = elapsed.as_secs_f64() / duration.as_secs_f64();
-            
+
             let eased = 1.0 - 2f64.powf(-10.0 * progress);
 
             let cur_w = (start_w + dw * eased).round() as u32;

@@ -108,7 +108,12 @@ pub fn verify_pairing_code(pairing_code: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub fn confirm_pairing(device_id: String, device_name: String, base_url: String, pairing_code: String) -> Result<String, String> {
+pub fn confirm_pairing(
+    device_id: String,
+    device_name: String,
+    base_url: String,
+    pairing_code: String,
+) -> Result<String, String> {
     let device_id = device_id.trim().to_string();
     if device_id.is_empty() {
         return Err("设备 ID 不能为空".to_string());
@@ -145,7 +150,10 @@ fn view_pairing_state(state: &PairingState) -> PairingCodeView {
     PairingCodeView {
         pairing_code: state.challenge.pairing_code.clone(),
         expires_at_ms: state.challenge.expires_at_ms,
-        remaining_attempts: state.challenge.max_attempts.saturating_sub(state.failed_attempts),
+        remaining_attempts: state
+            .challenge
+            .max_attempts
+            .saturating_sub(state.failed_attempts),
     }
 }
 
@@ -161,7 +169,10 @@ fn ensure_pairing_state(runtime: &mut LanRuntime) -> &PairingState {
             failed_attempts: 0,
         });
     }
-    runtime.pairing_state.as_ref().expect("pairing_state must exist")
+    runtime
+        .pairing_state
+        .as_ref()
+        .expect("pairing_state must exist")
 }
 
 fn is_expired(expires_at_ms: i64) -> bool {

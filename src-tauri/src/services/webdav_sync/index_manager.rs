@@ -1,7 +1,10 @@
 use super::types::{SyncCollection, SyncIndex};
 use super::webdav_client::WebdavClient;
 
-pub async fn load_index(client: &WebdavClient, collection: SyncCollection) -> Result<SyncIndex, String> {
+pub async fn load_index(
+    client: &WebdavClient,
+    collection: SyncCollection,
+) -> Result<SyncIndex, String> {
     let path = format!("{}/index.json", collection.dir());
     let index = client.get_json(&path).await?;
     if index.is_some() {

@@ -61,14 +61,14 @@ tauri-plugin-store = "2"
 active-win-pos-rs = "0.8"
 atree = "0.5.2"
 rstar = "0.12.2"
-qcocr = {git="https://github.com/mosheng1/qcocr"}
-winreg = "0.55"
 low-memory-fltk = { path = "plugins/low-memory-fltk" }
 ratatui = "0.29"
 crossterm = "0.28"
 trash = "5.2.6"
 
 [target.'cfg(windows)'.dependencies]
+qcocr = {git="https://github.com/mosheng1/qcocr"}
+winreg = "0.55"
 keyring = { version = "3.6.3", features = ["windows-native"] }
 windows = { version = "0.62", features = [
     "Win32_UI_WindowsAndMessaging",

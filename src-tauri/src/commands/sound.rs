@@ -1,4 +1,4 @@
-use crate::services::sound::{SoundPlayer, AppSounds};
+use crate::services::sound::{AppSounds, SoundPlayer};
 use std::path::Path;
 
 #[tauri::command]
@@ -27,4 +27,3 @@ pub fn play_paste_sound() {
 pub fn play_scroll_sound() {
     AppSounds::play_scroll();
 }
-

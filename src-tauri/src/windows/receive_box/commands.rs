@@ -24,7 +24,9 @@ pub async fn receive_box_list_cloud_files() -> Result<Vec<ReceiveBoxCloudFile>, 
 }
 
 #[tauri::command]
-pub async fn receive_box_download_cloud_file(file_id: String) -> Result<ReceiveBoxCloudFile, String> {
+pub async fn receive_box_download_cloud_file(
+    file_id: String,
+) -> Result<ReceiveBoxCloudFile, String> {
     manager::download_cloud_file(file_id).await
 }
 

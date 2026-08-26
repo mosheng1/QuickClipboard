@@ -26,7 +26,8 @@ pub fn webdav_get_status() -> Result<services::webdav_sync::WebdavStatus, String
 }
 
 #[tauri::command]
-pub fn webdav_get_last_report() -> Result<Option<services::webdav_sync::sync_scheduler::WebdavSyncReportEvent>, String> {
+pub fn webdav_get_last_report(
+) -> Result<Option<services::webdav_sync::sync_scheduler::WebdavSyncReportEvent>, String> {
     Ok(services::webdav_sync::sync_scheduler::get_last_report())
 }
 
@@ -51,7 +52,11 @@ pub fn webdav_has_saved_password(url: String, username: String) -> Result<bool, 
 }
 
 #[tauri::command]
-pub fn webdav_set_password(url: String, username: String, password: String) -> Result<bool, String> {
+pub fn webdav_set_password(
+    url: String,
+    username: String,
+    password: String,
+) -> Result<bool, String> {
     if password.is_empty() {
         if url.trim().is_empty() || username.trim().is_empty() {
             return Ok(false);
@@ -87,9 +92,13 @@ pub fn webdav_set_encryption_password(
         if url.trim().is_empty() {
             return Ok(false);
         }
-        services::secure_credentials::delete_webdav_encryption_password(&url, &username, &root_path)?;
+        services::secure_credentials::delete_webdav_encryption_password(
+            &url, &username, &root_path,
+        )?;
         return Ok(false);
     }
-    services::secure_credentials::set_webdav_encryption_password(&url, &username, &root_path, &password)?;
+    services::secure_credentials::set_webdav_encryption_password(
+        &url, &username, &root_path, &password,
+    )?;
     Ok(true)
 }

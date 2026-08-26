@@ -146,7 +146,9 @@ fn type_label(content_type: &str, _image_id: Option<&str>) -> &'static str {
 }
 
 fn header_style() -> Style {
-    Style::new().bg(Color::DarkGray).add_modifier(Modifier::BOLD)
+    Style::new()
+        .bg(Color::DarkGray)
+        .add_modifier(Modifier::BOLD)
 }
 
 fn selected_style() -> Style {
@@ -301,10 +303,10 @@ impl App {
                 "DELETE FROM clipboard_data WHERE target_kind = 'clipboard' AND target_id = ?1",
                 rusqlite::params![id.to_string()],
             );
-            match self.db.execute(
-                "DELETE FROM clipboard WHERE id = ?1",
-                rusqlite::params![id],
-            ) {
+            match self
+                .db
+                .execute("DELETE FROM clipboard WHERE id = ?1", rusqlite::params![id])
+            {
                 Ok(n) if n > 0 => {
                     self.status_message = format!("已删除剪贴板项 #{}", id);
                     self.load_clipboard();
@@ -422,10 +424,10 @@ impl App {
     pub fn delete_favorite(&mut self, index: usize) -> bool {
         if let Some(item) = self.fav_items.get(index) {
             let id = &item.id;
-            match self.db.execute(
-                "DELETE FROM favorites WHERE id = ?1",
-                rusqlite::params![id],
-            ) {
+            match self
+                .db
+                .execute("DELETE FROM favorites WHERE id = ?1", rusqlite::params![id])
+            {
                 Ok(n) if n > 0 => {
                     self.status_message = format!("已删除收藏项 {}", id);
                     self.load_favorites();
@@ -582,27 +584,23 @@ pub fn draw(f: &mut Frame, app: &mut App) {
             }
 
             let (help_text, help_color): (&str, Color) = match &app.screen {
-                Screen::List => {
-                    match app.current_tab {
-                        Tab::Clipboard => {
-                            if app.is_searching {
-                                ("输入关键字后按 Enter 搜索, Tab/Esc 取消搜索 | ←→ 切换面板 | ↑↓ 导航 | PgUp/PgDn 翻页 | D 删除 | Q 退出", Color::Gray)
-                            } else {
-                                ("←→ 切换面板 | ↑↓ 导航 | Enter 查看详情 | PgUp/PgDn 翻页 | Tab 搜索 | D 删除 | R 刷新 | Q 退出", Color::Gray)
-                            }
-                        }
-                        Tab::Favorites => {
-                            if app.fav_is_searching {
-                                ("输入关键字后按 Enter 搜索, Tab/Esc 取消搜索 | ←→ 切换面板 | ↑↓ 导航 | PgUp/PgDn 翻页 | D 删除 | Q 退出", Color::Gray)
-                            } else {
-                                ("←→ 切换面板 | ↑↓ 导航 | Enter 查看详情 | PgUp/PgDn 翻页 | Tab 搜索 | D 删除 | R 刷新 | Q 退出", Color::Gray)
-                            }
-                        }
-                        Tab::Groups => {
-                            ("←→ 切换面板 | ↑↓ 导航 | Q 退出", Color::Gray)
+                Screen::List => match app.current_tab {
+                    Tab::Clipboard => {
+                        if app.is_searching {
+                            ("输入关键字后按 Enter 搜索, Tab/Esc 取消搜索 | ←→ 切换面板 | ↑↓ 导航 | PgUp/PgDn 翻页 | D 删除 | Q 退出", Color::Gray)
+                        } else {
+                            ("←→ 切换面板 | ↑↓ 导航 | Enter 查看详情 | PgUp/PgDn 翻页 | Tab 搜索 | D 删除 | R 刷新 | Q 退出", Color::Gray)
                         }
                     }
-                }
+                    Tab::Favorites => {
+                        if app.fav_is_searching {
+                            ("输入关键字后按 Enter 搜索, Tab/Esc 取消搜索 | ←→ 切换面板 | ↑↓ 导航 | PgUp/PgDn 翻页 | D 删除 | Q 退出", Color::Gray)
+                        } else {
+                            ("←→ 切换面板 | ↑↓ 导航 | Enter 查看详情 | PgUp/PgDn 翻页 | Tab 搜索 | D 删除 | R 刷新 | Q 退出", Color::Gray)
+                        }
+                    }
+                    Tab::Groups => ("←→ 切换面板 | ↑↓ 导航 | Q 退出", Color::Gray),
+                },
                 Screen::Detail(_) => ("Esc 返回 | D 删除此项", Color::Gray),
                 Screen::ConfirmDelete(_) => ("Enter / Y 确认删除 | Esc / N 取消", Color::Red),
             };
@@ -795,8 +793,8 @@ fn draw_clipboard_table(f: &mut Frame, app: &mut App, area: Rect) {
         let scrollbar = Scrollbar::new(ScrollbarOrientation::VerticalRight)
             .begin_symbol(Some("▲"))
             .end_symbol(Some("▼"));
-        let mut scroll_state = ScrollbarState::new(app.items.len())
-            .position(app.table_state.selected().unwrap_or(0));
+        let mut scroll_state =
+            ScrollbarState::new(app.items.len()).position(app.table_state.selected().unwrap_or(0));
         f.render_stateful_widget(scrollbar, area, &mut scroll_state);
     }
 }
@@ -827,12 +825,20 @@ fn draw_favorites_table(f: &mut Frame, app: &mut App, area: Rect) {
         .enumerate()
         .map(|(i, item)| {
             let is_sel = app.table_state.selected() == Some(i);
-            let style = if is_sel { selected_style() } else { Style::new() };
+            let style = if is_sel {
+                selected_style()
+            } else {
+                Style::new()
+            };
             let preview = content_preview(&item.content, 60);
             Row::new(vec![
                 Cell::from(item.id.as_str()),
                 Cell::from(type_label(&item.content_type, item.image_id.as_deref())),
-                Cell::from(if item.title.is_empty() { "未命名" } else { &item.title }),
+                Cell::from(if item.title.is_empty() {
+                    "未命名"
+                } else {
+                    &item.title
+                }),
                 Cell::from(preview),
                 Cell::from(item.group_name.as_str()),
                 Cell::from(human_timestamp(item.created_at)),
@@ -893,7 +899,11 @@ fn draw_groups_table(f: &mut Frame, app: &mut App, area: Rect) {
         .enumerate()
         .map(|(i, group)| {
             let is_sel = app.table_state.selected() == Some(i);
-            let style = if is_sel { selected_style() } else { Style::new() };
+            let style = if is_sel {
+                selected_style()
+            } else {
+                Style::new()
+            };
             Row::new(vec![
                 Cell::from(group.name.as_str()),
                 Cell::from(format!("{}", group.item_count)),
@@ -1076,7 +1086,11 @@ fn draw_favorite_detail_popup(f: &mut Frame, item: &FavoriteRow, area: Rect) {
     let inner = block.inner(popup_area);
     f.render_widget(block, popup_area);
 
-    let title_display = if item.title.is_empty() { "未命名" } else { &item.title };
+    let title_display = if item.title.is_empty() {
+        "未命名"
+    } else {
+        &item.title
+    };
     let meta = vec![
         Line::from(vec![
             Span::styled("标题: ", Style::new().fg(Color::Gray)),
@@ -1175,7 +1189,11 @@ fn draw_favorite_confirm_popup(f: &mut Frame, item: &FavoriteRow, area: Rect) {
     let inner = block.inner(popup_area);
     f.render_widget(block, popup_area);
 
-    let title_display = if item.title.is_empty() { "未命名" } else { &item.title };
+    let title_display = if item.title.is_empty() {
+        "未命名"
+    } else {
+        &item.title
+    };
     let text = vec![
         Line::from(""),
         Line::from(vec![Span::styled(
@@ -1186,8 +1204,11 @@ fn draw_favorite_confirm_popup(f: &mut Frame, item: &FavoriteRow, area: Rect) {
             "  此操作不可撤销！",
             Style::new().fg(Color::Red),
         )]),
-        Line::from(vec![Span::raw(format!("  ID: {}    分组: {}", item.id, item.group_name))
-            .style(Style::new().fg(Color::Gray))]),
+        Line::from(vec![Span::raw(format!(
+            "  ID: {}    分组: {}",
+            item.id, item.group_name
+        ))
+        .style(Style::new().fg(Color::Gray))]),
         Line::from(""),
         Line::from(vec![Span::styled(
             "  [ Enter / Y 确认 ]    [ Esc / N 取消 ]",
@@ -1262,38 +1283,34 @@ fn handle_list_input(app: &mut App, key: event::KeyEvent) {
 
     if is_searching {
         match key.code {
-            KeyCode::Esc | KeyCode::Tab => {
-                match app.current_tab {
-                    Tab::Clipboard => {
-                        app.search_query.clear();
-                        app.is_searching = false;
-                        app.current_page = 0;
-                        app.load_clipboard();
-                    }
-                    Tab::Favorites => {
-                        app.fav_search.clear();
-                        app.fav_is_searching = false;
-                        app.fav_page = 0;
-                        app.load_favorites();
-                    }
-                    _ => {}
+            KeyCode::Esc | KeyCode::Tab => match app.current_tab {
+                Tab::Clipboard => {
+                    app.search_query.clear();
+                    app.is_searching = false;
+                    app.current_page = 0;
+                    app.load_clipboard();
                 }
-            }
-            KeyCode::Enter => {
-                match app.current_tab {
-                    Tab::Clipboard => {
-                        app.is_searching = false;
-                        app.current_page = 0;
-                        app.load_clipboard();
-                    }
-                    Tab::Favorites => {
-                        app.fav_is_searching = false;
-                        app.fav_page = 0;
-                        app.load_favorites();
-                    }
-                    _ => {}
+                Tab::Favorites => {
+                    app.fav_search.clear();
+                    app.fav_is_searching = false;
+                    app.fav_page = 0;
+                    app.load_favorites();
                 }
-            }
+                _ => {}
+            },
+            KeyCode::Enter => match app.current_tab {
+                Tab::Clipboard => {
+                    app.is_searching = false;
+                    app.current_page = 0;
+                    app.load_clipboard();
+                }
+                Tab::Favorites => {
+                    app.fav_is_searching = false;
+                    app.fav_page = 0;
+                    app.load_favorites();
+                }
+                _ => {}
+            },
             KeyCode::Backspace => {
                 match app.current_tab {
                     Tab::Clipboard => app.search_query.pop(),
@@ -1316,21 +1333,19 @@ fn handle_list_input(app: &mut App, key: event::KeyEvent) {
     match key.code {
         KeyCode::Char('q') | KeyCode::Char('Q') => app.should_quit = true,
 
-        KeyCode::Tab => {
-            match app.current_tab {
-                Tab::Clipboard => {
-                    app.is_searching = true;
-                    app.search_query.clear();
-                }
-                Tab::Favorites => {
-                    app.fav_is_searching = true;
-                    app.fav_search.clear();
-                }
-                Tab::Groups => {
-                    app.status_message = "分组列表不支持搜索".into();
-                }
+        KeyCode::Tab => match app.current_tab {
+            Tab::Clipboard => {
+                app.is_searching = true;
+                app.search_query.clear();
             }
-        }
+            Tab::Favorites => {
+                app.fav_is_searching = true;
+                app.fav_search.clear();
+            }
+            Tab::Groups => {
+                app.status_message = "分组列表不支持搜索".into();
+            }
+        },
 
         KeyCode::Char('r') | KeyCode::Char('R') => {
             match app.current_tab {
@@ -1385,23 +1400,21 @@ fn handle_list_input(app: &mut App, key: event::KeyEvent) {
             }
         }
 
-        KeyCode::Esc => {
-            match app.current_tab {
-                Tab::Clipboard if !app.search_query.is_empty() => {
-                    app.search_query.clear();
-                    app.current_page = 0;
-                    app.load_clipboard();
-                    app.status_message = "已清除搜索".into();
-                }
-                Tab::Favorites if !app.fav_search.is_empty() => {
-                    app.fav_search.clear();
-                    app.fav_page = 0;
-                    app.load_favorites();
-                    app.status_message = "已清除搜索".into();
-                }
-                _ => {}
+        KeyCode::Esc => match app.current_tab {
+            Tab::Clipboard if !app.search_query.is_empty() => {
+                app.search_query.clear();
+                app.current_page = 0;
+                app.load_clipboard();
+                app.status_message = "已清除搜索".into();
             }
-        }
+            Tab::Favorites if !app.fav_search.is_empty() => {
+                app.fav_search.clear();
+                app.fav_page = 0;
+                app.load_favorites();
+                app.status_message = "已清除搜索".into();
+            }
+            _ => {}
+        },
 
         _ => {}
     }

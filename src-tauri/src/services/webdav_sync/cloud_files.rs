@@ -56,7 +56,8 @@ pub struct CloudFileUploadProgress {
     pub status: String,
 }
 
-pub type CloudFileUploadProgressCallback = Arc<dyn Fn(CloudFileUploadProgress) + Send + Sync + 'static>;
+pub type CloudFileUploadProgressCallback =
+    Arc<dyn Fn(CloudFileUploadProgress) + Send + Sync + 'static>;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -233,7 +234,10 @@ pub async fn list_files(client: &WebdavClient) -> Result<Vec<CloudFileListItem>,
     Ok(files)
 }
 
-pub async fn download_file(client: &WebdavClient, file_id: &str) -> Result<CloudFileDownloadResult, String> {
+pub async fn download_file(
+    client: &WebdavClient,
+    file_id: &str,
+) -> Result<CloudFileDownloadResult, String> {
     validate_file_id(file_id)?;
     let index = load_index(client).await?;
     let manifest = index
@@ -245,11 +249,14 @@ pub async fn download_file(client: &WebdavClient, file_id: &str) -> Result<Cloud
     let mut download_index = load_download_index()?;
     let target = local_download_path(&manifest, &download_index)?;
     if target.exists() && sha256_file(&target)? == manifest.sha256 {
-        download_index.files.insert(manifest.id.clone(), CloudFileDownloadRecord {
-            path: target.to_string_lossy().to_string(),
-            downloaded_at: chrono::Utc::now().timestamp_millis(),
-            sha256: manifest.sha256.clone(),
-        });
+        download_index.files.insert(
+            manifest.id.clone(),
+            CloudFileDownloadRecord {
+                path: target.to_string_lossy().to_string(),
+                downloaded_at: chrono::Utc::now().timestamp_millis(),
+                sha256: manifest.sha256.clone(),
+            },
+        );
         save_download_index(&download_index)?;
         return Ok(CloudFileDownloadResult {
             file: to_list_item(manifest, &download_index),
@@ -258,7 +265,10 @@ pub async fn download_file(client: &WebdavClient, file_id: &str) -> Result<Cloud
 
     let temp = target.with_extension(format!(
         "{}.qcpart",
-        target.extension().and_then(|value| value.to_str()).unwrap_or("tmp")
+        target
+            .extension()
+            .and_then(|value| value.to_str())
+            .unwrap_or("tmp")
     ));
     if temp.exists() {
         let _ = std::fs::remove_file(&temp);
@@ -280,17 +290,18 @@ pub async fn download_file(client: &WebdavClient, file_id: &str) -> Result<Cloud
     }
 
     if target.exists() {
-        std::fs::remove_file(&target)
-            .map_err(|e| format!("替换本地下载文件失败: {}", e))?;
+        std::fs::remove_file(&target).map_err(|e| format!("替换本地下载文件失败: {}", e))?;
     }
-    std::fs::rename(&temp, &target)
-        .map_err(|e| format!("保存本地下载文件失败: {}", e))?;
+    std::fs::rename(&temp, &target).map_err(|e| format!("保存本地下载文件失败: {}", e))?;
 
-    download_index.files.insert(manifest.id.clone(), CloudFileDownloadRecord {
-        path: target.to_string_lossy().to_string(),
-        downloaded_at: chrono::Utc::now().timestamp_millis(),
-        sha256: manifest.sha256.clone(),
-    });
+    download_index.files.insert(
+        manifest.id.clone(),
+        CloudFileDownloadRecord {
+            path: target.to_string_lossy().to_string(),
+            downloaded_at: chrono::Utc::now().timestamp_millis(),
+            sha256: manifest.sha256.clone(),
+        },
+    );
     save_download_index(&download_index)?;
 
     Ok(CloudFileDownloadResult {
@@ -306,7 +317,9 @@ pub async fn delete_file(client: &WebdavClient, file_id: &str) -> Result<(), Str
         .remove(file_id)
         .ok_or_else(|| "云端文件不存在".to_string())?;
 
-    client.delete_path(&cloud_file_object_path(&manifest.id)).await?;
+    client
+        .delete_path(&cloud_file_object_path(&manifest.id))
+        .await?;
     save_index(client, &index).await?;
 
     let mut download_index = load_download_index()?;
@@ -392,7 +405,9 @@ struct PreparedCloudFileUpload {
     progress: Option<CloudFileUploadProgressCallback>,
 }
 
-fn prepare_upload_request(request: CloudFileUploadRequest) -> Result<PreparedCloudFileUpload, (String, String)> {
+fn prepare_upload_request(
+    request: CloudFileUploadRequest,
+) -> Result<PreparedCloudFileUpload, (String, String)> {
     let path = request.path;
     let source = PathBuf::from(&path);
     let metadata = std::fs::metadata(&source)
@@ -418,7 +433,9 @@ fn prepare_upload_request(request: CloudFileUploadRequest) -> Result<PreparedClo
     })
 }
 
-fn upload_progress_callback(upload: &PreparedCloudFileUpload) -> Option<Arc<dyn Fn(u64) + Send + Sync + 'static>> {
+fn upload_progress_callback(
+    upload: &PreparedCloudFileUpload,
+) -> Option<Arc<dyn Fn(u64) + Send + Sync + 'static>> {
     upload.progress.clone().map(|callback| {
         let transfer_id = upload
             .transfer_id
@@ -438,7 +455,10 @@ fn upload_progress_callback(upload: &PreparedCloudFileUpload) -> Option<Arc<dyn 
     })
 }
 
-fn to_list_item(file: CloudFileManifest, download_index: &CloudFileDownloadIndex) -> CloudFileListItem {
+fn to_list_item(
+    file: CloudFileManifest,
+    download_index: &CloudFileDownloadIndex,
+) -> CloudFileListItem {
     let record = download_index.files.get(&file.id);
     let (local_status, local_path, downloaded_at) = match record {
         Some(record) if PathBuf::from(&record.path).exists() => (
@@ -473,29 +493,28 @@ fn load_download_index() -> Result<CloudFileDownloadIndex, String> {
     if !path.exists() {
         return Ok(CloudFileDownloadIndex::default());
     }
-    let bytes = std::fs::read(&path)
-        .map_err(|e| format!("读取云端下载状态失败: {}", e))?;
-    serde_json::from_slice(&bytes)
-        .map_err(|e| format!("解析云端下载状态失败: {}", e))
+    let bytes = std::fs::read(&path).map_err(|e| format!("读取云端下载状态失败: {}", e))?;
+    serde_json::from_slice(&bytes).map_err(|e| format!("解析云端下载状态失败: {}", e))
 }
 
 fn save_download_index(index: &CloudFileDownloadIndex) -> Result<(), String> {
     let path = download_index_path()?;
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("创建云端下载状态目录失败: {}", e))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("创建云端下载状态目录失败: {}", e))?;
     }
-    let bytes = serde_json::to_vec_pretty(index)
-        .map_err(|e| format!("序列化云端下载状态失败: {}", e))?;
-    std::fs::write(&path, bytes)
-        .map_err(|e| format!("保存云端下载状态失败: {}", e))
+    let bytes =
+        serde_json::to_vec_pretty(index).map_err(|e| format!("序列化云端下载状态失败: {}", e))?;
+    std::fs::write(&path, bytes).map_err(|e| format!("保存云端下载状态失败: {}", e))
 }
 
 fn download_index_path() -> Result<PathBuf, String> {
     Ok(downloads_dir()?.join(DOWNLOAD_INDEX_NAME))
 }
 
-fn local_download_path(manifest: &CloudFileManifest, download_index: &CloudFileDownloadIndex) -> Result<PathBuf, String> {
+fn local_download_path(
+    manifest: &CloudFileManifest,
+    download_index: &CloudFileDownloadIndex,
+) -> Result<PathBuf, String> {
     validate_file_id(&manifest.id)?;
     if let Some(record) = download_index.files.get(&manifest.id) {
         let path = PathBuf::from(&record.path);
@@ -505,7 +524,12 @@ fn local_download_path(manifest: &CloudFileManifest, download_index: &CloudFileD
     }
     let dir = download_files_dir()?;
     let file_name = sanitize_file_name(&manifest.name);
-    Ok(unique_download_path(&dir, &file_name, &manifest.id, download_index))
+    Ok(unique_download_path(
+        &dir,
+        &file_name,
+        &manifest.id,
+        download_index,
+    ))
 }
 
 fn downloads_dir() -> Result<PathBuf, String> {
@@ -533,7 +557,8 @@ fn unique_download_path(
             format!("{} ({})", stem, suffix + 1)
         };
         let candidate = dir.join(candidate_name);
-        if !candidate.exists() && !download_path_used_by_other(file_id, &candidate, download_index) {
+        if !candidate.exists() && !download_path_used_by_other(file_id, &candidate, download_index)
+        {
             return candidate;
         }
         suffix = suffix.saturating_add(1);
@@ -545,9 +570,10 @@ fn download_path_used_by_other(
     candidate: &Path,
     download_index: &CloudFileDownloadIndex,
 ) -> bool {
-    download_index.files.iter().any(|(id, record)| {
-        id != file_id && PathBuf::from(&record.path) == candidate
-    })
+    download_index
+        .files
+        .iter()
+        .any(|(id, record)| id != file_id && PathBuf::from(&record.path) == candidate)
 }
 
 fn split_file_name(file_name: &str) -> (String, Option<String>) {
@@ -582,7 +608,8 @@ fn sanitize_file_name(name: &str) -> String {
     let mut out = name
         .chars()
         .map(|ch| {
-            if ch.is_control() || matches!(ch, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*') {
+            if ch.is_control() || matches!(ch, '<' | '>' | ':' | '"' | '/' | '\\' | '|' | '?' | '*')
+            {
                 '_'
             } else {
                 ch
@@ -594,15 +621,31 @@ fn sanitize_file_name(name: &str) -> String {
     if out.is_empty() {
         out = "file".to_string();
     }
-    let stem = out
-        .split('.')
-        .next()
-        .unwrap_or("")
-        .to_ascii_uppercase();
+    let stem = out.split('.').next().unwrap_or("").to_ascii_uppercase();
     if matches!(
         stem.as_str(),
-        "CON" | "PRN" | "AUX" | "NUL" | "COM1" | "COM2" | "COM3" | "COM4" | "COM5" | "COM6" | "COM7" | "COM8" | "COM9"
-            | "LPT1" | "LPT2" | "LPT3" | "LPT4" | "LPT5" | "LPT6" | "LPT7" | "LPT8" | "LPT9"
+        "CON"
+            | "PRN"
+            | "AUX"
+            | "NUL"
+            | "COM1"
+            | "COM2"
+            | "COM3"
+            | "COM4"
+            | "COM5"
+            | "COM6"
+            | "COM7"
+            | "COM8"
+            | "COM9"
+            | "LPT1"
+            | "LPT2"
+            | "LPT3"
+            | "LPT4"
+            | "LPT5"
+            | "LPT6"
+            | "LPT7"
+            | "LPT8"
+            | "LPT9"
     ) {
         out.insert(0, '_');
     }
@@ -610,10 +653,8 @@ fn sanitize_file_name(name: &str) -> String {
 }
 
 fn sha256_file(path: &Path) -> Result<String, String> {
-    let mut file = std::fs::File::open(path)
-        .map_err(|e| format!("打开待上传文件失败: {}", e))?;
+    let mut file = std::fs::File::open(path).map_err(|e| format!("打开待上传文件失败: {}", e))?;
     let mut hasher = Sha256::new();
-    std::io::copy(&mut file, &mut hasher)
-        .map_err(|e| format!("计算文件校验值失败: {}", e))?;
+    std::io::copy(&mut file, &mut hasher).map_err(|e| format!("计算文件校验值失败: {}", e))?;
     Ok(hex::encode(hasher.finalize()))
 }

@@ -1,17 +1,17 @@
-mod setup;
-mod menu;
 mod events;
+mod menu;
 pub mod native_menu;
+mod setup;
 
-pub use setup::*;
 pub use events::*;
 pub use native_menu::handle_native_menu_event;
+pub use setup::*;
 
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 #[cfg(windows)]
 use std::process::Command;
-use tauri::{AppHandle, tray::TrayIconId};
+use tauri::{tray::TrayIconId, AppHandle};
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -22,7 +22,8 @@ pub fn switch_to_native_menu(app: &AppHandle) -> Result<(), String> {
     if let Some(tray) = app.tray_by_id(&tray_id) {
         let menu = native_menu::create_native_menu(app)?;
         tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
-        tray.set_show_menu_on_left_click(true).map_err(|e| e.to_string())?;
+        tray.set_show_menu_on_left_click(true)
+            .map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -31,8 +32,10 @@ pub fn switch_to_native_menu(app: &AppHandle) -> Result<(), String> {
 pub fn switch_to_webview_menu(app: &AppHandle) -> Result<(), String> {
     let tray_id = TrayIconId::new("main-tray");
     if let Some(tray) = app.tray_by_id(&tray_id) {
-        tray.set_menu(None::<tauri::menu::Menu<tauri::Wry>>).map_err(|e| e.to_string())?;
-        tray.set_show_menu_on_left_click(false).map_err(|e| e.to_string())?;
+        tray.set_menu(None::<tauri::menu::Menu<tauri::Wry>>)
+            .map_err(|e| e.to_string())?;
+        tray.set_show_menu_on_left_click(false)
+            .map_err(|e| e.to_string())?;
     }
     Ok(())
 }
@@ -48,7 +51,10 @@ fn spawn_delayed_restart_process() -> Result<(), String> {
             "-WindowStyle",
             "Hidden",
             "-Command",
-            &format!("Start-Sleep -Milliseconds 1200; Start-Process -FilePath '{}'", exe_str),
+            &format!(
+                "Start-Sleep -Milliseconds 1200; Start-Process -FilePath '{}'",
+                exe_str
+            ),
         ])
         .creation_flags(CREATE_NO_WINDOW)
         .spawn()

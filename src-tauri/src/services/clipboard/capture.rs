@@ -1,4 +1,4 @@
-﻿use clipboard_rs::{common::RustImage, Clipboard, ClipboardContext, RustImageData};
+use clipboard_rs::{common::RustImage, Clipboard, ClipboardContext, RustImageData};
 
 use crate::services::database::ClipboardDataSeed;
 use regex::Regex;
@@ -94,7 +94,9 @@ impl ClipboardContent {
             }
 
             if cached_image_path.is_none() {
-                cached_image_path = results.iter().find_map(|content| content.image_path.clone());
+                cached_image_path = results
+                    .iter()
+                    .find_map(|content| content.image_path.clone());
             }
 
             // 图片已拿到后额外补几轮，尽量等到 Excel 晚到的文本/HTML/RTF 格式。
@@ -106,7 +108,8 @@ impl ClipboardContent {
                             .raw_formats
                             .iter()
                             .filter(|item| {
-                                item.format_name != crate::services::clipboard::INTERNAL_IMAGE_PATH_FORMAT
+                                item.format_name
+                                    != crate::services::clipboard::INTERNAL_IMAGE_PATH_FORMAT
                             })
                             .count()
                     })
@@ -129,10 +132,7 @@ impl ClipboardContent {
                 continue;
             }
 
-            if results
-                .iter()
-                .all(|content| !needs_capture_retry(content))
-            {
+            if results.iter().all(|content| !needs_capture_retry(content)) {
                 return Ok(results);
             }
 

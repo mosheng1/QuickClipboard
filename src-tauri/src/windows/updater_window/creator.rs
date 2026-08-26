@@ -1,13 +1,15 @@
-use tauri::{AppHandle, WebviewUrl, WebviewWindowBuilder, WebviewWindow, Manager};
-use tauri::{Emitter, Listener};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{LazyLock, Mutex};
 use std::time::Duration;
+use tauri::{AppHandle, Manager, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{Emitter, Listener};
 use tokio::time::interval;
 
 static FORCE_UPDATE_MODE: AtomicBool = AtomicBool::new(false);
-static UPDATE_BANNER_STATE: LazyLock<Mutex<Option<UpdateBannerState>>> = LazyLock::new(|| Mutex::new(None));
-static UPDATE_WINDOW_PAYLOAD: LazyLock<Mutex<Option<serde_json::Value>>> = LazyLock::new(|| Mutex::new(None));
+static UPDATE_BANNER_STATE: LazyLock<Mutex<Option<UpdateBannerState>>> =
+    LazyLock::new(|| Mutex::new(None));
+static UPDATE_WINDOW_PAYLOAD: LazyLock<Mutex<Option<serde_json::Value>>> =
+    LazyLock::new(|| Mutex::new(None));
 const AUTO_UPDATE_CHECK_INTERVAL_SECS: u64 = 60 * 60;
 const LAST_AUTO_CHECK_AT_KEY: &str = "updater.last_auto_check_at";
 
@@ -96,7 +98,10 @@ fn current_unix_timestamp() -> u64 {
         .unwrap_or(0)
 }
 
-fn resolve_use_beta_channel(settings: &crate::services::AppSettings, is_current_prerelease: bool) -> bool {
+fn resolve_use_beta_channel(
+    settings: &crate::services::AppSettings,
+    is_current_prerelease: bool,
+) -> bool {
     if let Some(include_beta_updates) = settings.include_beta_updates {
         return include_beta_updates;
     }
@@ -122,12 +127,13 @@ async fn check_updates_if_due(app: &AppHandle) -> Result<bool, String> {
     check_updates(app, !settings.disable_update_popup).await
 }
 
-// 检测当前运行的程序是否为安装版
+// 检测当前运行的程序是否为安装版（仅 Windows：读取注册表）
+#[cfg(windows)]
 fn is_installed_version() -> bool {
+    use std::path::Path;
     use winreg::enums::*;
     use winreg::RegKey;
-    use std::path::Path;
-    
+
     let current_exe = match std::env::current_exe() {
         Ok(p) => p,
         Err(_) => return false,
@@ -136,12 +142,18 @@ fn is_installed_version() -> bool {
         Some(p) => p.to_string_lossy().to_lowercase(),
         None => return false,
     };
-    
+
     let reg_paths = [
-        (HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\QuickClipboard"),
-        (HKEY_CURRENT_USER, r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\QuickClipboard"),
+        (
+            HKEY_LOCAL_MACHINE,
+            r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\QuickClipboard",
+        ),
+        (
+            HKEY_CURRENT_USER,
+            r"SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\QuickClipboard",
+        ),
     ];
-    
+
     for (hkey, path) in reg_paths {
         if let Ok(key) = RegKey::predef(hkey).open_subkey(path) {
             if let Ok(loc) = key.get_value::<String, _>("InstallLocation") {
@@ -170,17 +182,23 @@ fn is_installed_version() -> bool {
             }
         }
     }
-    
+
+    false
+}
+
+// 非 Windows 平台：无安装版概念，视为便携版
+#[cfg(not(windows))]
+fn is_installed_version() -> bool {
     false
 }
 
 pub fn start_update_checker(app: AppHandle) {
     tauri::async_runtime::spawn(async move {
         let _ = check_updates_if_due(&app).await;
-        
+
         let mut ticker = interval(Duration::from_secs(AUTO_UPDATE_CHECK_INTERVAL_SECS));
         ticker.tick().await;
-        
+
         loop {
             ticker.tick().await;
             let _ = check_updates_if_due(&app).await;
@@ -206,10 +224,12 @@ pub fn open_updater_window(app: &AppHandle, force_update: bool) -> Result<Webvie
     .always_on_top(true)
     .visible(true)
     .focused(false)
-    .focusable(false)
-    .drag_and_drop(false)
-    .build()
-    .map_err(|e| format!("创建更新窗口失败: {}", e))?;
+    .focusable(false);
+    #[cfg(windows)]
+    let window = window.drag_and_drop(false);
+    let window = window
+        .build()
+        .map_err(|e| format!("创建更新窗口失败: {}", e))?;
 
     if let Ok(size) = window.outer_size() {
         let margin: i32 = 12;
@@ -217,23 +237,25 @@ pub fn open_updater_window(app: &AppHandle, force_update: bool) -> Result<Webvie
         if let Ok(monitor) = crate::screen::ScreenUtils::get_monitor_at_cursor(app) {
             let work_area = monitor.work_area();
             let x = work_area.position.x + work_area.size.width as i32 - size.width as i32 - margin;
-            let y = work_area.position.y + work_area.size.height as i32 - size.height as i32 - margin;
-            let _ = window.set_position(tauri::PhysicalPosition::new(x.max(work_area.position.x), y.max(work_area.position.y)));
+            let y =
+                work_area.position.y + work_area.size.height as i32 - size.height as i32 - margin;
+            let _ = window.set_position(tauri::PhysicalPosition::new(
+                x.max(work_area.position.x),
+                y.max(work_area.position.y),
+            ));
         }
     }
 
     if force_update {
         let app_for_event = app.clone();
-        window.on_window_event(move |event| {
-            match event {
-                tauri::WindowEvent::CloseRequested { api, .. } => {
-                    api.prevent_close();
-                }
-                tauri::WindowEvent::Destroyed => {
-                    app_for_event.exit(0);
-                }
-                _ => {}
+        window.on_window_event(move |event| match event {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
+                api.prevent_close();
             }
+            tauri::WindowEvent::Destroyed => {
+                app_for_event.exit(0);
+            }
+            _ => {}
         });
     }
 
@@ -263,9 +285,9 @@ pub async fn open_cached_update_window(app: &AppHandle) -> Result<bool, String> 
 }
 
 async fn check_updates(app: &AppHandle, should_open_window: bool) -> Result<bool, String> {
-    use tauri_plugin_updater::UpdaterExt;
     use std::time::Duration;
-    
+    use tauri_plugin_updater::UpdaterExt;
+
     let settings = crate::services::get_settings();
     let current_version = app.package_info().version.to_string();
     let is_current_prerelease = is_prerelease(&current_version);
@@ -275,7 +297,10 @@ async fn check_updates(app: &AppHandle, should_open_window: bool) -> Result<bool
     let mut stable_json_url: Option<String> = None;
     let mut beta_json_url: Option<String> = None;
 
-    if let Ok(client) = reqwest::Client::builder().timeout(Duration::from_secs(15)).build() {
+    if let Ok(client) = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+    {
         if let Ok(resp) = client.get(entry_url).send().await {
             if let Ok(json) = resp.json::<serde_json::Value>().await {
                 stable_json_url = json
@@ -290,30 +315,43 @@ async fn check_updates(app: &AppHandle, should_open_window: bool) -> Result<bool
         }
     }
 
-    let stable_url = stable_json_url.unwrap_or_else(|| "https://api.quickclipboard.cn/update/stable_latest.json".to_string());
-    let beta_url = beta_json_url.unwrap_or_else(|| "https://api.quickclipboard.cn/update/beta_latest.json".to_string());
+    let stable_url = stable_json_url
+        .unwrap_or_else(|| "https://api.quickclipboard.cn/update/stable_latest.json".to_string());
+    let beta_url = beta_json_url
+        .unwrap_or_else(|| "https://api.quickclipboard.cn/update/beta_latest.json".to_string());
 
     let use_beta_channel = resolve_use_beta_channel(&settings, is_current_prerelease);
 
-    let chosen_manifest_url = if use_beta_channel { beta_url } else { stable_url };
+    let chosen_manifest_url = if use_beta_channel {
+        beta_url
+    } else {
+        stable_url
+    };
     let chosen_manifest_url_str = chosen_manifest_url.clone();
 
     let mut force_update = false;
     let mut notes: Option<serde_json::Value> = None;
 
-    if let Ok(client) = reqwest::Client::builder().timeout(Duration::from_secs(15)).build() {
+    if let Ok(client) = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+    {
         if let Ok(resp) = client.get(&chosen_manifest_url_str).send().await {
             if let Ok(json) = resp.json::<serde_json::Value>().await {
-                force_update = json.get("forceUpdate").and_then(|v| v.as_bool()).unwrap_or(false);
+                force_update = json
+                    .get("forceUpdate")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
                 notes = json.get("notes").cloned();
             }
         }
     }
 
-    let chosen_manifest_endpoint = tauri::Url::parse(&chosen_manifest_url_str)
-        .map_err(|e| format!("{}", e))?;
+    let chosen_manifest_endpoint =
+        tauri::Url::parse(&chosen_manifest_url_str).map_err(|e| format!("{}", e))?;
 
-    let updater = app.updater_builder()
+    let updater = app
+        .updater_builder()
         .endpoints(vec![chosen_manifest_endpoint])
         .map_err(|e| e.to_string())?
         .build()
@@ -322,7 +360,7 @@ async fn check_updates(app: &AppHandle, should_open_window: bool) -> Result<bool
     match updater.check().await.map_err(|e| e.to_string())? {
         Some(update) => {
             let new_version = update.version.clone();
-            
+
             if !use_beta_channel && is_prerelease(&new_version) {
                 set_update_banner_state(app, None);
                 set_update_window_payload(None);
@@ -336,7 +374,7 @@ async fn check_updates(app: &AppHandle, should_open_window: bool) -> Result<bool
                     latest_version: new_version.clone(),
                 }),
             );
-            
+
             if force_update {
                 FORCE_UPDATE_MODE.store(true, Ordering::Relaxed);
                 if let Some(main_window) = app.get_webview_window("main") {
@@ -349,10 +387,14 @@ async fn check_updates(app: &AppHandle, should_open_window: bool) -> Result<bool
             }
 
             // 检测是否为便携版/免安装版（不自动更新）
-            let mut is_portable = crate::services::is_portable_build() 
+            let mut is_portable = crate::services::is_portable_build()
                 || std::env::current_exe()
                     .ok()
-                    .and_then(|e| e.parent().map(|p| p.join("portable.txt").exists() || p.join("portable.flag").exists()))
+                    .and_then(|e| {
+                        e.parent().map(|p| {
+                            p.join("portable.txt").exists() || p.join("portable.flag").exists()
+                        })
+                    })
                     .unwrap_or(false)
                 || !is_installed_version();
 
@@ -370,7 +412,7 @@ async fn check_updates(app: &AppHandle, should_open_window: bool) -> Result<bool
                 set_update_window_payload(Some(payload));
                 return Ok(true);
             }
-            
+
             let window = if let Some(w) = app.get_webview_window("updater") {
                 let _ = w.show();
                 w
@@ -401,4 +443,3 @@ async fn check_updates(app: &AppHandle, should_open_window: bool) -> Result<bool
 pub async fn check_updates_and_open_window(app: &AppHandle) -> Result<bool, String> {
     check_updates(app, true).await
 }
-

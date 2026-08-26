@@ -65,7 +65,10 @@ struct PairingConfirmOutput {
     peer_token: String,
 }
 
-pub async fn pair_with_peer(base_url: String, pairing_code: String) -> Result<super::PairedPeerInfo, String> {
+pub async fn pair_with_peer(
+    base_url: String,
+    pairing_code: String,
+) -> Result<super::PairedPeerInfo, String> {
     let base_url = normalize_base_url(&base_url)?;
     let client = build_client();
     let hello = client
@@ -122,23 +125,33 @@ pub async fn pair_with_peer(base_url: String, pairing_code: String) -> Result<su
     Ok(info)
 }
 
-pub async fn fetch_peer_snapshot(peer: &super::peer_store::PairedPeer) -> Result<super::LanSyncSnapshot, String> {
+pub async fn fetch_peer_snapshot(
+    peer: &super::peer_store::PairedPeer,
+) -> Result<super::LanSyncSnapshot, String> {
     authorized_get(peer, "/qc-sync/snapshot").await
 }
 
-pub async fn fetch_peer_history_records(peer: &super::peer_store::PairedPeer) -> Result<super::LanRecordBatch, String> {
+pub async fn fetch_peer_history_records(
+    peer: &super::peer_store::PairedPeer,
+) -> Result<super::LanRecordBatch, String> {
     authorized_get(peer, "/qc-sync/records/history").await
 }
 
-pub async fn fetch_peer_favorite_records(peer: &super::peer_store::PairedPeer) -> Result<super::LanRecordBatch, String> {
+pub async fn fetch_peer_favorite_records(
+    peer: &super::peer_store::PairedPeer,
+) -> Result<super::LanRecordBatch, String> {
     authorized_get(peer, "/qc-sync/records/favorites").await
 }
 
-pub async fn fetch_peer_groups(peer: &super::peer_store::PairedPeer) -> Result<super::LanGroupBatch, String> {
+pub async fn fetch_peer_groups(
+    peer: &super::peer_store::PairedPeer,
+) -> Result<super::LanGroupBatch, String> {
     authorized_get(peer, "/qc-sync/groups").await
 }
 
-pub async fn fetch_peer_tombstones(peer: &super::peer_store::PairedPeer) -> Result<super::LanTombstoneBatch, String> {
+pub async fn fetch_peer_tombstones(
+    peer: &super::peer_store::PairedPeer,
+) -> Result<super::LanTombstoneBatch, String> {
     authorized_get(peer, "/qc-sync/tombstones").await
 }
 
@@ -170,13 +183,20 @@ pub async fn push_peer_tombstones(
     authorized_post(peer, "/qc-sync/tombstones", &batch).await
 }
 
-pub async fn fetch_peer_image(peer: &super::peer_store::PairedPeer, image_id: &str) -> Result<Option<Vec<u8>>, String> {
+pub async fn fetch_peer_image(
+    peer: &super::peer_store::PairedPeer,
+    image_id: &str,
+) -> Result<Option<Vec<u8>>, String> {
     let client = build_transfer_client();
     let config = LanHttpClientConfig {
         base_url: peer.base_url.clone(),
         peer_token: peer.peer_token.clone(),
     };
-    let url = format!("{}/qc-sync/files/{}.png", config.base_url.trim_end_matches('/'), image_id);
+    let url = format!(
+        "{}/qc-sync/files/{}.png",
+        config.base_url.trim_end_matches('/'),
+        image_id
+    );
     for attempt in 0..IMAGE_REQUEST_MAX_ATTEMPTS {
         let response = match client
             .get(&url)
@@ -186,7 +206,9 @@ pub async fn fetch_peer_image(peer: &super::peer_store::PairedPeer, image_id: &s
             .await
         {
             Ok(response) => response,
-            Err(e) if should_retry_transport_error(&e) && attempt + 1 < IMAGE_REQUEST_MAX_ATTEMPTS => {
+            Err(e)
+                if should_retry_transport_error(&e) && attempt + 1 < IMAGE_REQUEST_MAX_ATTEMPTS =>
+            {
                 wait_before_image_retry(attempt).await;
                 continue;
             }
@@ -200,7 +222,9 @@ pub async fn fetch_peer_image(peer: &super::peer_store::PairedPeer, image_id: &s
         }
         match response.bytes().await {
             Ok(bytes) => return Ok(Some(bytes.to_vec())),
-            Err(e) if should_retry_transport_error(&e) && attempt + 1 < IMAGE_REQUEST_MAX_ATTEMPTS => {
+            Err(e)
+                if should_retry_transport_error(&e) && attempt + 1 < IMAGE_REQUEST_MAX_ATTEMPTS =>
+            {
                 wait_before_image_retry(attempt).await;
                 continue;
             }
@@ -210,13 +234,21 @@ pub async fn fetch_peer_image(peer: &super::peer_store::PairedPeer, image_id: &s
     Err("读取局域网图片失败: 多次重试后仍无法连接".to_string())
 }
 
-pub async fn push_peer_image(peer: &super::peer_store::PairedPeer, image_id: &str, bytes: Vec<u8>) -> Result<(), String> {
+pub async fn push_peer_image(
+    peer: &super::peer_store::PairedPeer,
+    image_id: &str,
+    bytes: Vec<u8>,
+) -> Result<(), String> {
     let client = build_transfer_client();
     let config = LanHttpClientConfig {
         base_url: peer.base_url.clone(),
         peer_token: peer.peer_token.clone(),
     };
-    let url = format!("{}/qc-sync/files/{}.png", config.base_url.trim_end_matches('/'), image_id);
+    let url = format!(
+        "{}/qc-sync/files/{}.png",
+        config.base_url.trim_end_matches('/'),
+        image_id
+    );
     for attempt in 0..IMAGE_REQUEST_MAX_ATTEMPTS {
         let response = match client
             .put(&url)
@@ -227,7 +259,9 @@ pub async fn push_peer_image(peer: &super::peer_store::PairedPeer, image_id: &st
             .await
         {
             Ok(response) => response,
-            Err(e) if should_retry_transport_error(&e) && attempt + 1 < IMAGE_REQUEST_MAX_ATTEMPTS => {
+            Err(e)
+                if should_retry_transport_error(&e) && attempt + 1 < IMAGE_REQUEST_MAX_ATTEMPTS =>
+            {
                 wait_before_image_retry(attempt).await;
                 continue;
             }
@@ -287,14 +321,19 @@ pub async fn send_peer_file_stream(
         .await
         .map_err(|e| format!("解析局域网文件传输结果失败: {}", e))?;
     let local_sha256 = {
-        let guard = hasher.lock().map_err(|_| "局域网文件校验状态异常".to_string())?;
+        let guard = hasher
+            .lock()
+            .map_err(|_| "局域网文件校验状态异常".to_string())?;
         hex::encode(guard.clone().finalize())
     };
     if result.size != 0 && result.size != size {
         if let Some(reporter) = reporter.as_ref() {
             reporter.emit("failed", size);
         }
-        return Err(format!("局域网文件大小校验失败: 本地 {} 字节，对方 {} 字节", size, result.size));
+        return Err(format!(
+            "局域网文件大小校验失败: 本地 {} 字节，对方 {} 字节",
+            size, result.size
+        ));
     }
     if let Some(remote_sha256) = result.sha256.as_deref() {
         if !remote_sha256.eq_ignore_ascii_case(&local_sha256) {
@@ -355,7 +394,8 @@ impl<R: AsyncRead + Unpin> AsyncRead for ProgressHashReader<R> {
                 }
                 self.sent = self.sent.saturating_add(read);
                 let should_report = self.sent == self.total
-                    || self.sent.saturating_sub(self.last_reported) >= FILE_TRANSFER_BUFFER_SIZE as u64;
+                    || self.sent.saturating_sub(self.last_reported)
+                        >= FILE_TRANSFER_BUFFER_SIZE as u64;
                 if should_report {
                     self.last_reported = self.sent;
                     if let Some(reporter) = self.reporter.as_ref() {
@@ -368,7 +408,10 @@ impl<R: AsyncRead + Unpin> AsyncRead for ProgressHashReader<R> {
     }
 }
 
-async fn authorized_get<T: serde::de::DeserializeOwned>(peer: &super::peer_store::PairedPeer, path: &str) -> Result<T, String> {
+async fn authorized_get<T: serde::de::DeserializeOwned>(
+    peer: &super::peer_store::PairedPeer,
+    path: &str,
+) -> Result<T, String> {
     let client = build_client();
     let config = LanHttpClientConfig {
         base_url: peer.base_url.clone(),
@@ -385,12 +428,23 @@ async fn authorized_get<T: serde::de::DeserializeOwned>(peer: &super::peer_store
         return Err(LAN_UNAUTHORIZED.to_string());
     }
     if !response.status().is_success() {
-        return Err(format!("读取局域网同步数据失败({}): {}", path, response.status()));
+        return Err(format!(
+            "读取局域网同步数据失败({}): {}",
+            path,
+            response.status()
+        ));
     }
-    response.json::<T>().await.map_err(|e| format!("解析局域网同步数据失败({}): {}", path, e))
+    response
+        .json::<T>()
+        .await
+        .map_err(|e| format!("解析局域网同步数据失败({}): {}", path, e))
 }
 
-async fn authorized_post<T, B>(peer: &super::peer_store::PairedPeer, path: &str, body: &B) -> Result<T, String>
+async fn authorized_post<T, B>(
+    peer: &super::peer_store::PairedPeer,
+    path: &str,
+    body: &B,
+) -> Result<T, String>
 where
     T: serde::de::DeserializeOwned,
     B: Serialize + ?Sized,
@@ -409,9 +463,16 @@ where
         .await
         .map_err(|e| format!("推送局域网同步数据失败({}): {}", path, e))?;
     if !response.status().is_success() {
-        return Err(format!("推送局域网同步数据失败({}): {}", path, response.status()));
+        return Err(format!(
+            "推送局域网同步数据失败({}): {}",
+            path,
+            response.status()
+        ));
     }
-    response.json::<T>().await.map_err(|e| format!("解析局域网推送结果失败({}): {}", path, e))
+    response
+        .json::<T>()
+        .await
+        .map_err(|e| format!("解析局域网推送结果失败({}): {}", path, e))
 }
 
 fn should_retry_transport_error(error: &reqwest::Error) -> bool {
