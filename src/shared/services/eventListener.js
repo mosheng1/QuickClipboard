@@ -1,6 +1,6 @@
 import { listen } from '@tauri-apps/api/event'
 import { refreshClipboardHistory, clipboardStore } from '@shared/store/clipboardStore'
-import { refreshFavorites, favoritesStore } from '@shared/store/favoritesStore'
+import { refreshFavorites } from '@shared/store/favoritesStore'
 import { loadGroups, groupsStore } from '@shared/store/groupsStore'
 import { navigationStore } from '@shared/store/navigationStore'
 
@@ -48,16 +48,6 @@ function shouldRefreshClipboard(payload) {
   )
 }
 
-function shouldRefreshFavorites(payload) {
-  return (
-    favoritesStore.filter ||
-    favoritesStore.contentType !== 'all' ||
-    payload?.kind !== 'created' ||
-    !payload?.item ||
-    !Number.isInteger(payload?.insert_index)
-  )
-}
-
 async function handleClipboardUpdated(payload) {
   try {
     if (shouldRefreshClipboard(payload)) {
@@ -94,39 +84,15 @@ async function handleClipboardUpdated(payload) {
   }
 }
 
-async function handleFavoritesUpdated(payload) {
+// 收藏失效通知：只表达“收藏数据已变化”。统一由现有权威刷新链路
+// 重新读取数据库（refreshFavorites 内部推进请求版本，使更旧的在途
+// 响应失去写回资格），当前分组与筛选由刷新查询携带，事件侧不做
+// 增量插入或分组判断
+async function handleFavoritesUpdated() {
   try {
-    if (payload?.kind === 'created' && payload?.item) {
-      const currentGroup = groupsStore.currentGroup
-      const matchesCurrentGroup =
-        currentGroup === '全部' || !currentGroup || payload.item.group_name === currentGroup
-
-      if (!matchesCurrentGroup) {
-        return
-      }
-    }
-
-    if (shouldRefreshFavorites(payload)) {
-      await refreshFavorites(groupsStore.currentGroup)
-      return
-    }
-
-    const nextTotalCount = favoritesStore.totalCount + 1
-    const inserted = favoritesStore.insertLoadedItemAt(
-      payload.item,
-      payload.insert_index,
-      nextTotalCount,
-    )
-
-    if (!inserted) {
-      await refreshFavorites(groupsStore.currentGroup)
-      return
-    }
-
-    shiftNavigationIndex('favorites', payload.insert_index)
+    await refreshFavorites(groupsStore.currentGroup)
   } catch (error) {
     console.error('处理收藏更新事件失败:', error)
-    await refreshFavorites(groupsStore.currentGroup)
   }
 }
 
@@ -138,8 +104,8 @@ export async function setupClipboardEventListener() {
     })
     unlisteners.push(unlisten1)
 
-    const unlisten2 = await listen('quick-texts-updated', (event) => {
-      handleFavoritesUpdated(event.payload).catch(() => {})
+    const unlisten2 = await listen('quick-texts-updated', () => {
+      handleFavoritesUpdated().catch(() => {})
     })
     unlisteners.push(unlisten2)
 

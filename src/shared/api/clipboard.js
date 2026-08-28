@@ -185,15 +185,14 @@ export async function addClipboardToFavorites(id, groupName) {
 
   const result = await invoke('add_clipboard_to_favorites', { id, groupName })
   clipboardStore.setFavoriteId(id, result.id)
-  const favoriteItem = await getFavoriteItemById(result.id)
+  // 广播一次数据更新通知即可，收藏列表由事件监听侧重新从数据库读取，
+  // 这里不回读新建收藏，也不直接写收藏分页缓存
   await invoke('emit_quick_texts_updated', {
     payload: {
-      kind: 'created',
-      item: favoriteItem,
-      insert_index: 0,
+      kind: 'updated',
     },
   })
-  return favoriteItem
+  return result
 }
 
 // 另存图片
