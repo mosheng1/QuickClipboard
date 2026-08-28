@@ -82,6 +82,7 @@ body.theme-light.theme-light-wireframe {
   --wf-grid-v: rgba(0,0,0,0.024);
   --wf-diagonal: rgba(0,0,0,0.03);
   --wf-bg-end: #e7d6bf;
+  --wf-select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='9' viewBox='0 0 13 9'%3E%3Cpath d='M1.5 2 L6.5 7 L11.5 2' fill='none' stroke='%232a1b0c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 body.theme-dark.theme-dark-sketch {
@@ -169,6 +170,7 @@ body.theme-dark.theme-dark-sketch {
   --wf-grid-v: rgba(255,255,255,0.018);
   --wf-diagonal: rgba(255,255,255,0.024);
   --wf-bg-end: #1a1f27;
+  --wf-select-arrow: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='13' height='9' viewBox='0 0 13 9'%3E%3Cpath d='M1.5 2 L6.5 7 L11.5 2' fill='none' stroke='%23f5f1e8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
 }
 
 body:is(.theme-light.theme-light-wireframe, .theme-dark.theme-dark-sketch),
@@ -221,7 +223,7 @@ body:is(.theme-light.theme-light-wireframe, .theme-dark.theme-dark-sketch) :is(
 
 body:is(.theme-light.theme-light-wireframe, .theme-dark.theme-dark-sketch) :is(
   .main-container, .settings-container, .card, .clipboard-item, .favorite-item,
-  button, input, textarea, select
+  button, input, textarea, select, .qc-select-display
 )::before {
   content: "";
   position: absolute;
@@ -235,7 +237,7 @@ body:is(.theme-light.theme-light-wireframe, .theme-dark.theme-dark-sketch) :is(
 
 body:is(.theme-light.theme-light-wireframe, .theme-dark.theme-dark-sketch) :is(
   .main-container, .settings-container, .card, .clipboard-item, .favorite-item,
-  button, input, textarea, select
+  button, input, textarea, select, .qc-select-display
 )::after {
   content: "";
   position: absolute;
@@ -689,4 +691,56 @@ body:is(.theme-light.theme-light-wireframe, .theme-dark.theme-dark-sketch) hr {
 
 body:is(.theme-light.theme-light-wireframe, .theme-dark.theme-dark-sketch) :is(svg, .icon) {
   filter: contrast(1.08) saturate(0.88) brightness(1.01);
+}
+
+/* WebView2 会裁切原生 select 关闭态的选中值，且该匿名文本盒不受页面行高控制。
+   原生 select 继续负责焦点、键盘和下拉弹层；普通 DOM 显示关闭态文字，
+   因而能完整继承主题首选字体与用户自定义字体。 */
+body:is(.theme-light.theme-light-wireframe, .theme-dark.theme-dark-sketch) .qc-select-native {
+  appearance: none;
+  -webkit-appearance: none;
+  z-index: 2;
+  opacity: 0;
+}
+
+body:is(.theme-light.theme-light-wireframe, .theme-dark.theme-dark-sketch) .qc-select-display {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 36px;
+  padding: 0 32px 0 12px;
+  overflow: hidden;
+  color: var(--qc-fg);
+  line-height: 20px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  border: 2px solid var(--qc-border-strong);
+  border-radius: 12px 5px 10px 6px / 6px 9px 5px 8px;
+  background:
+    var(--wf-select-arrow) right 10px center / 13px 9px no-repeat,
+    linear-gradient(180deg, rgba(255,255,255,0.08), transparent),
+    var(--paper-noise);
+  box-shadow: var(--wf-input-shadow);
+  transition:
+    border-color 0.14s ease,
+    box-shadow 0.14s ease,
+    background 0.14s ease,
+    transform 0.14s ease;
+  isolation: isolate;
+}
+
+body:is(.theme-light.theme-light-wireframe, .theme-dark.theme-dark-sketch) .qc-select:focus-within .qc-select-display {
+  border-color: var(--qc-accent);
+  transform: translate(-1px, -1px);
+  box-shadow:
+    0 0 0 3px rgba(255, 140, 0, 0.16),
+    5px 6px 0 rgba(0,0,0,0.16),
+    10px 11px 0 rgba(0,0,0,0.05);
+}
+
+body:is(.theme-light.theme-light-wireframe, .theme-dark.theme-dark-sketch) .qc-select-disabled .qc-select-display {
+  cursor: not-allowed;
+  opacity: 0.6;
 }
