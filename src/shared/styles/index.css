@@ -164,3 +164,22 @@ input, select {
   font-size: 14px;
   height: 36px;
 }
+
+.qc-select {
+  display: inline-grid;
+  vertical-align: middle;
+}
+
+.qc-select-native,
+.qc-select-display {
+  grid-area: 1 / 1;
+}
+
+.qc-select-native {
+  width: 100%;
+  min-width: 0;
+}
+
+.qc-select-display {
+  display: none;
+}
