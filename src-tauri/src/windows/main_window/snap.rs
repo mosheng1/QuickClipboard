@@ -8,6 +8,10 @@ const FRONTEND_CONTENT_INSET_LOGICAL: f64 = 5.0;
 
 static ANIMATION_VERSION: AtomicU64 = AtomicU64::new(0);
 
+fn set_snap_cursor_passthrough(window: &WebviewWindow, ignored: bool) {
+    let _ = window.set_ignore_cursor_events(ignored);
+}
+
 #[derive(Clone, Debug)]
 struct MonitorEdgeContext {
     id: String,
@@ -465,6 +469,7 @@ pub fn check_snap(window: &WebviewWindow) -> Result<(), String> {
 }
 
 pub fn snap_to_edge(window: &WebviewWindow, edge: SnapEdge) -> Result<(), String> {
+    set_snap_cursor_passthrough(window, false);
     let size = window.outer_size().map_err(|e| e.to_string())?;
     let (x, y, _, _) = crate::utils::positioning::get_window_bounds(window)?;
     let settings = crate::get_settings();
@@ -494,7 +499,7 @@ pub fn snap_to_edge(window: &WebviewWindow, edge: SnapEdge) -> Result<(), String
 
 pub fn hide_snapped_window(window: &WebviewWindow) -> Result<(), String> {
     use tauri::Manager;
-    
+
     let state = super::state::get_window_state();
     
     if !state.is_snapped || state.is_hidden {
@@ -509,6 +514,7 @@ pub fn hide_snapped_window(window: &WebviewWindow) -> Result<(), String> {
     let _ = crate::windows::pin_image_window::close_image_preview(window.app_handle().clone());
     let _ = crate::windows::preview_window::close_preview_window(window.app_handle().clone());
     let _ = window.emit("edge-snap-hide", ());
+    set_snap_cursor_passthrough(window, true);
 
     let size = window.outer_size().map_err(|e| e.to_string())?;
     let (x, y, _, _) = crate::utils::positioning::get_window_bounds(window)?;
@@ -566,6 +572,8 @@ pub fn refresh_hidden_snapped_window(window: &WebviewWindow) -> Result<(), Strin
     if !state.is_snapped || !state.is_hidden {
         return Ok(());
     }
+
+    set_snap_cursor_passthrough(window, true);
 
     let settings = crate::get_settings();
     let size = window.outer_size().map_err(|e| e.to_string())?;
@@ -658,7 +666,7 @@ pub fn show_snapped_window(window: &WebviewWindow) -> Result<(), String> {
     if !state.is_snapped || !state.is_hidden {
         return Ok(());
     }
-    
+
     let size = window.outer_size().map_err(|e| e.to_string())?;
     let (x, y, _, _) = crate::utils::positioning::get_window_bounds(window)?;
     let settings = crate::get_settings();
@@ -688,6 +696,7 @@ pub fn show_snapped_window(window: &WebviewWindow) -> Result<(), String> {
     if !window.is_visible().unwrap_or(false) {
         let _ = window.show();
     }
+    set_snap_cursor_passthrough(window, false);
     let _ = window.emit("edge-snap-show", ());
     let _ = crate::commands::window::emit_main_window_refresh_needed_event(&window.app_handle());
     
@@ -757,7 +766,8 @@ fn animate_window_position(
             
             let window_for_task = window_clone.clone();
             let _ = app.run_on_main_thread(move || {
-                let _ = window_for_task.set_position(tauri::PhysicalPosition::new(current_x, current_y));
+                let _ = window_for_task
+                    .set_position(tauri::PhysicalPosition::new(current_x, current_y));
             });
             
             if frame < total_frames {
@@ -778,6 +788,8 @@ fn animate_window_position(
 
 pub fn restore_from_snap(window: &WebviewWindow) -> Result<(), String> {
     let state = super::state::get_window_state();
+
+    set_snap_cursor_passthrough(window, false);
     
     if let Some(pos) = state.snap_position {
         window.set_position(tauri::PhysicalPosition::new(pos.0, pos.1))
@@ -839,6 +851,7 @@ pub fn restore_edge_snap_on_startup(window: &WebviewWindow) -> Result<(), String
     save_snap_layout(resolved.edge, snapped_ratio, Some(resolved.monitor_id));
     
     let _ = window.show();
+    set_snap_cursor_passthrough(window, true);
     let _ = window.set_always_on_top(true);
     
     super::state::set_window_state(super::state::WindowState::Hidden);
