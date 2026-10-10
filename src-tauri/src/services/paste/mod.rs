@@ -1,21 +1,12 @@
-pub mod paste_handler;
-pub mod options;
-pub mod text;
-pub mod keyboard;
 pub mod clipboard_content;
+pub mod keyboard;
 pub mod merge;
+pub mod options;
+pub mod paste_handler;
+pub mod text;
 
-pub use options::PasteAction;
 pub use clipboard_content::{
-    FilesData, 
-    set_clipboard_from_item, set_clipboard_text, set_clipboard_files,
+    set_clipboard_files, set_clipboard_from_item, set_clipboard_text, FilesData,
 };
 pub use merge::{copy_merged_items, paste_merged_items};
-
-
-
-
-
-
-
-
+pub use options::PasteAction;

@@ -105,14 +105,19 @@ pub fn describe_path(path: &str) -> ShelfFileInfo {
     let icon = metadata
         .as_ref()
         .filter(|value| value.is_file())
-        .and_then(|_| crate::utils::icon::get_file_icon_base64(effective_path)
-            .or_else(|| crate::utils::icon::get_file_icon_base64(path)));
+        .and_then(|_| {
+            crate::utils::icon::get_file_icon_base64(effective_path)
+                .or_else(|| crate::utils::icon::get_file_icon_base64(path))
+        });
 
     ShelfFileInfo {
         path: effective_path.to_string(),
         name,
         size: metadata.as_ref().map(|value| value.len()).unwrap_or(0),
-        is_dir: metadata.as_ref().map(|value| value.is_dir()).unwrap_or(false),
+        is_dir: metadata
+            .as_ref()
+            .map(|value| value.is_dir())
+            .unwrap_or(false),
         exists: metadata.is_some(),
         icon,
     }

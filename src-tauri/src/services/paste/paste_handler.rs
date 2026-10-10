@@ -3,7 +3,9 @@ use clipboard_rs::{ClipboardContent as RsClipboardContent, ClipboardContext};
 use crate::services::database::{get_clipboard_data_items, ClipboardDataItem, ClipboardItem};
 use crate::utils::cf_html::generate_cf_html;
 
-use super::clipboard_content::{set_clipboard_contents, set_clipboard_files, set_clipboard_image_file};
+use super::clipboard_content::{
+    set_clipboard_contents, set_clipboard_files, set_clipboard_image_file,
+};
 use super::keyboard::simulate_paste;
 use super::options::{resolve_default_paste_action, PasteAction};
 use super::text::paste_text;

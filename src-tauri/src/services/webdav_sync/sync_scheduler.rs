@@ -101,7 +101,9 @@ pub fn notify_local_change(app: AppHandle, reason: &'static str) {
         return;
     }
 
-    let version = AUTO_PUSH_VERSION.fetch_add(1, Ordering::SeqCst).saturating_add(1);
+    let version = AUTO_PUSH_VERSION
+        .fetch_add(1, Ordering::SeqCst)
+        .saturating_add(1);
     let delay_secs = settings.webdav_push_delay_secs.max(1);
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(Duration::from_secs(delay_secs)).await;
@@ -204,12 +206,12 @@ pub async fn upload_selected_parts(force_all: bool) -> Result<Option<SyncReport>
     let last_uploaded_signature = LAST_UPLOADED_SIGNATURE.lock().clone();
     let sync_clipboard = settings.webdav_sync_clipboard;
     let sync_favorites = settings.webdav_sync_favorites;
-    let upload_clipboard = sync_clipboard
-        && (force_all || signature.clipboard != last_uploaded_signature.clipboard);
-    let upload_favorites = sync_favorites
-        && (force_all || signature.favorites != last_uploaded_signature.favorites);
-    let upload_groups = sync_favorites
-        && (force_all || signature.groups != last_uploaded_signature.groups);
+    let upload_clipboard =
+        sync_clipboard && (force_all || signature.clipboard != last_uploaded_signature.clipboard);
+    let upload_favorites =
+        sync_favorites && (force_all || signature.favorites != last_uploaded_signature.favorites);
+    let upload_groups =
+        sync_favorites && (force_all || signature.groups != last_uploaded_signature.groups);
     let upload_tombstones = (sync_clipboard || sync_favorites)
         && (force_all || signature.tombstones != last_uploaded_signature.tombstones);
 
@@ -217,7 +219,13 @@ pub async fn upload_selected_parts(force_all: bool) -> Result<Option<SyncReport>
         return Ok(None);
     }
 
-    let report = super::upload_parts(upload_clipboard, upload_favorites, upload_groups, upload_tombstones).await?;
+    let report = super::upload_parts(
+        upload_clipboard,
+        upload_favorites,
+        upload_groups,
+        upload_tombstones,
+    )
+    .await?;
     if report.errors.is_empty() {
         let uploaded_signature = merged_uploaded_signature(
             &last_uploaded_signature,
@@ -289,7 +297,11 @@ fn last_uploaded_signature_key() -> String {
 fn store_report(mode: &'static str, result: SyncReport, automatic: bool) {
     let should_refresh_main_window =
         result.pulled_clipboard > 0 || result.pulled_favorites > 0 || result.pulled_groups > 0;
-    let event = WebdavSyncReportEvent { mode, result, automatic };
+    let event = WebdavSyncReportEvent {
+        mode,
+        result,
+        automatic,
+    };
     *LAST_REPORT.lock() = Some(event.clone());
 
     let Some(app_handle) = APP_HANDLE.lock().clone() else {

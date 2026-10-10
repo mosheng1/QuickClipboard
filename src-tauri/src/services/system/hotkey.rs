@@ -2,10 +2,7 @@ mod global;
 mod navigation;
 
 pub use global::{
-    get_shortcut_status,
-    get_shortcut_statuses,
-    init_hotkey_manager,
-    is_hotkeys_enabled,
+    get_shortcut_status, get_shortcut_statuses, init_hotkey_manager, is_hotkeys_enabled,
     ShortcutStatus,
 };
 

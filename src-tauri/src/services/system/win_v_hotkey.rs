@@ -61,7 +61,7 @@ fn remove_disabled_hotkey(key: char, restart_explorer: bool) -> Result<(), Strin
     let hkcu = RegKey::predef(HKEY_CURRENT_USER);
     let reg_key = match hkcu.open_subkey_with_flags(EXPLORER_ADVANCED_PATH, KEY_READ | KEY_WRITE) {
         Ok(k) => k,
-        Err(_) => return Ok(()), 
+        Err(_) => return Ok(()),
     };
 
     let current_value: String = reg_key
@@ -127,12 +127,22 @@ pub fn is_win_v_hotkey_disabled() -> bool {
 }
 
 #[cfg(not(windows))]
-pub fn disable_win_v_hotkey() -> Result<(), String> { Ok(()) }
+pub fn disable_win_v_hotkey() -> Result<(), String> {
+    Ok(())
+}
 #[cfg(not(windows))]
-pub fn disable_win_v_hotkey_silent() -> Result<(), String> { Ok(()) }
+pub fn disable_win_v_hotkey_silent() -> Result<(), String> {
+    Ok(())
+}
 #[cfg(not(windows))]
-pub fn enable_win_v_hotkey() -> Result<(), String> { Ok(()) }
+pub fn enable_win_v_hotkey() -> Result<(), String> {
+    Ok(())
+}
 #[cfg(not(windows))]
-pub fn enable_win_v_hotkey_silent() -> Result<(), String> { Ok(()) }
+pub fn enable_win_v_hotkey_silent() -> Result<(), String> {
+    Ok(())
+}
 #[cfg(not(windows))]
-pub fn is_win_v_hotkey_disabled() -> bool { false }
+pub fn is_win_v_hotkey_disabled() -> bool {
+    false
+}

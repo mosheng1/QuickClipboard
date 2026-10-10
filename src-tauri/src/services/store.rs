@@ -1,9 +1,9 @@
 // 持久化存储服务
 // 封装 tauri-plugin-store，供 Rust 代码使用
 
+use once_cell::sync::Lazy;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use once_cell::sync::Lazy;
 use tauri::{AppHandle, Manager};
 use tauri_plugin_store::StoreExt;
 
@@ -21,7 +21,8 @@ pub fn init(app: &AppHandle) {
 
 // 获取存储路径
 fn get_store_path(app: &AppHandle) -> PathBuf {
-    app.path().app_data_dir()
+    app.path()
+        .app_data_dir()
         .unwrap_or_else(|_| PathBuf::from("."))
         .join(DEFAULT_STORE_FILE)
 }
@@ -30,10 +31,10 @@ fn get_store_path(app: &AppHandle) -> PathBuf {
 pub fn get<T: serde::de::DeserializeOwned>(key: &str) -> Option<T> {
     let handle = APP_HANDLE.lock().unwrap();
     let app = handle.as_ref()?;
-    
+
     let store_path = get_store_path(app);
     let store = app.store(store_path).ok()?;
-    
+
     store.get(key).and_then(|v| serde_json::from_value(v).ok())
 }
 
@@ -41,14 +42,14 @@ pub fn get<T: serde::de::DeserializeOwned>(key: &str) -> Option<T> {
 pub fn set<T: serde::Serialize>(key: &str, value: &T) -> Result<(), String> {
     let handle = APP_HANDLE.lock().unwrap();
     let app = handle.as_ref().ok_or("AppHandle 未初始化")?;
-    
+
     let store_path = get_store_path(app);
     let store = app.store(store_path).map_err(|e| e.to_string())?;
-    
+
     let json_value = serde_json::to_value(value).map_err(|e| e.to_string())?;
     store.set(key, json_value);
     store.save().map_err(|e| e.to_string())?;
-    
+
     Ok(())
 }
 
@@ -56,34 +57,42 @@ pub fn set<T: serde::Serialize>(key: &str, value: &T) -> Result<(), String> {
 pub fn delete(key: &str) -> Result<(), String> {
     let handle = APP_HANDLE.lock().unwrap();
     let app = handle.as_ref().ok_or("AppHandle 未初始化")?;
-    
+
     let store_path = get_store_path(app);
     let store = app.store(store_path).map_err(|e| e.to_string())?;
-    
+
     store.delete(key);
     store.save().map_err(|e| e.to_string())?;
-    
+
     Ok(())
 }
 
 // 检查键是否存在
 pub fn has(key: &str) -> bool {
     let handle = APP_HANDLE.lock().unwrap();
-    let Some(app) = handle.as_ref() else { return false };
-    
+    let Some(app) = handle.as_ref() else {
+        return false;
+    };
+
     let store_path = get_store_path(app);
-    let Ok(store) = app.store(store_path) else { return false };
-    
+    let Ok(store) = app.store(store_path) else {
+        return false;
+    };
+
     store.has(key)
 }
 
 // 获取所有键
 pub fn keys() -> Vec<String> {
     let handle = APP_HANDLE.lock().unwrap();
-    let Some(app) = handle.as_ref() else { return vec![] };
-    
+    let Some(app) = handle.as_ref() else {
+        return vec![];
+    };
+
     let store_path = get_store_path(app);
-    let Ok(store) = app.store(store_path) else { return vec![] };
-    
+    let Ok(store) = app.store(store_path) else {
+        return vec![];
+    };
+
     store.keys().into_iter().map(|s| s.to_string()).collect()
 }

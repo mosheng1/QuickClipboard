@@ -10,7 +10,9 @@ pub struct WebdavTombstoneUploadResult {
     pub applied: crate::services::database::SyncTombstoneApplyReport,
 }
 
-pub async fn upload_tombstones(client: &WebdavClient) -> Result<WebdavTombstoneUploadResult, String> {
+pub async fn upload_tombstones(
+    client: &WebdavClient,
+) -> Result<WebdavTombstoneUploadResult, String> {
     let mut remote = load_remote_tombstones(client).await?;
     let remote_tombstones = remote.values().cloned().collect::<Vec<_>>();
     let _ = crate::services::database::upsert_sync_tombstones(&remote_tombstones)?;
@@ -19,7 +21,10 @@ pub async fn upload_tombstones(client: &WebdavClient) -> Result<WebdavTombstoneU
     let mut changed = Vec::new();
     let local = crate::services::database::list_sync_tombstones_since(None)?;
     for tombstone in local {
-        let key = crate::services::database::tombstone_state_key(&tombstone.collection, &tombstone.item_id);
+        let key = crate::services::database::tombstone_state_key(
+            &tombstone.collection,
+            &tombstone.item_id,
+        );
         let needs_upload = remote
             .get(&key)
             .map(|existing| existing.deleted_at < tombstone.deleted_at)
@@ -37,10 +42,7 @@ pub async fn upload_tombstones(client: &WebdavClient) -> Result<WebdavTombstoneU
         .iter()
         .map(|(key, tombstone)| (key.clone(), tombstone.deleted_at))
         .collect();
-    Ok(WebdavTombstoneUploadResult {
-        states,
-        applied,
-    })
+    Ok(WebdavTombstoneUploadResult { states, applied })
 }
 
 pub async fn download_tombstones(client: &WebdavClient) -> Result<SyncReport, String> {
@@ -60,7 +62,9 @@ pub async fn download_tombstones(client: &WebdavClient) -> Result<SyncReport, St
     Ok(report)
 }
 
-pub async fn remote_tombstone_states(client: &WebdavClient) -> Result<HashMap<String, i64>, String> {
+pub async fn remote_tombstone_states(
+    client: &WebdavClient,
+) -> Result<HashMap<String, i64>, String> {
     Ok(load_remote_tombstones(client)
         .await?
         .into_iter()
@@ -82,10 +86,15 @@ async fn load_remote_tombstones(
     Ok(remote
         .tombstones
         .into_iter()
-        .filter(|tombstone| !tombstone.collection.trim().is_empty() && !tombstone.item_id.trim().is_empty())
+        .filter(|tombstone| {
+            !tombstone.collection.trim().is_empty() && !tombstone.item_id.trim().is_empty()
+        })
         .map(|tombstone| {
             (
-                crate::services::database::tombstone_state_key(&tombstone.collection, &tombstone.item_id),
+                crate::services::database::tombstone_state_key(
+                    &tombstone.collection,
+                    &tombstone.item_id,
+                ),
                 tombstone,
             )
         })

@@ -8,10 +8,8 @@ use std::path::PathBuf;
 use std::sync::Once;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-static STARTUP_STAGE: Lazy<RwLock<String>> =
-    Lazy::new(|| RwLock::new("准备启动应用".to_string()));
-static STARTUP_STATE: Lazy<RwLock<String>> =
-    Lazy::new(|| RwLock::new("starting".to_string()));
+static STARTUP_STAGE: Lazy<RwLock<String>> = Lazy::new(|| RwLock::new("准备启动应用".to_string()));
+static STARTUP_STATE: Lazy<RwLock<String>> = Lazy::new(|| RwLock::new("starting".to_string()));
 static PANIC_HOOK_ONCE: Once = Once::new();
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -92,11 +90,8 @@ pub fn install_panic_hook() {
                 message
             );
 
-            let suppress_dialog = should_suppress_startup_panic_dialog(
-                startup_state.as_str(),
-                &location,
-                &message,
-            );
+            let suppress_dialog =
+                should_suppress_startup_panic_dialog(startup_state.as_str(), &location, &message);
             append_panic_log(
                 startup_state.as_str(),
                 &current_startup_stage(),
@@ -134,10 +129,10 @@ pub fn report_startup_error(summary: &str, error: impl std::fmt::Display) {
 
 #[cfg(windows)]
 pub fn show_error_dialog(title: &str, message: &str) {
+    use windows::core::PCWSTR;
     use windows::Win32::UI::WindowsAndMessaging::{
         MessageBoxW, MB_ICONERROR, MB_OK, MB_SETFOREGROUND, MB_SYSTEMMODAL,
     };
-    use windows::core::PCWSTR;
 
     let title_wide: Vec<u16> = format!("{title}\0").encode_utf16().collect();
     let message_wide: Vec<u16> = format!("{message}\0").encode_utf16().collect();
@@ -210,7 +205,11 @@ fn append_panic_log(
     };
 
     let now_ms = current_time_ms();
-    let mode = if suppress_dialog { "仅记录" } else { "弹窗" };
+    let mode = if suppress_dialog {
+        "仅记录"
+    } else {
+        "弹窗"
+    };
     let entry = format!(
         "[{now_ms}] 状态: {startup_state}\n阶段: {startup_stage}\n位置: {location}\npanic: {message}\n处理: {mode}\n\n"
     );
@@ -251,7 +250,9 @@ fn current_time_ms() -> u64 {
 #[cfg(windows)]
 fn is_process_alive(pid: u32) -> bool {
     use windows::Win32::Foundation::{CloseHandle, STILL_ACTIVE};
-    use windows::Win32::System::Threading::{GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+    use windows::Win32::System::Threading::{
+        GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
 
     unsafe {
         let handle = match OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid) {

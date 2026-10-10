@@ -22,7 +22,10 @@ pub async fn upload_groups_with_tombstones(
     let mut changed = Vec::new();
 
     let local_groups = crate::services::database::webdav_list_groups(device_id)?;
-    let local_groups = crate::services::database::filter_groups_not_deleted_by_states(local_groups, tombstone_states);
+    let local_groups = crate::services::database::filter_groups_not_deleted_by_states(
+        local_groups,
+        tombstone_states,
+    );
     for mut group in local_groups {
         group.source_device_id = device_id.to_string();
         match remote.get(&group.name) {
@@ -41,7 +44,9 @@ pub async fn upload_groups_with_tombstones(
     let mut groups = remote.into_values().collect::<Vec<_>>();
     groups.sort_by_key(|g| (g.order, g.name.clone()));
     client.ensure_groups_dir().await?;
-    client.put_json("groups/groups.json", &GroupList { groups }).await?;
+    client
+        .put_json("groups/groups.json", &GroupList { groups })
+        .await?;
     Ok(changed)
 }
 

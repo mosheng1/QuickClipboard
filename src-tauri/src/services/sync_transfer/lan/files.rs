@@ -10,7 +10,8 @@ use crate::services::webdav_sync::types::CloudRecord;
 
 pub const MAX_DIRECT_TRANSFER_FILE_SIZE: u64 = 512 * 1024 * 1024;
 
-static RESERVED_RECEIVED_FILE_PATHS: Lazy<Mutex<HashSet<PathBuf>>> = Lazy::new(|| Mutex::new(HashSet::new()));
+static RESERVED_RECEIVED_FILE_PATHS: Lazy<Mutex<HashSet<PathBuf>>> =
+    Lazy::new(|| Mutex::new(HashSet::new()));
 static RECEIVED_FILE_INDEX_LOCK: Lazy<Mutex<()>> = Lazy::new(|| Mutex::new(()));
 
 const RECEIVED_FILE_INDEX_NAME: &str = "index.json";
@@ -42,8 +43,14 @@ struct ReceivedFileIndex {
 pub fn collect_record_image_ids(records: &[CloudRecord]) -> Vec<String> {
     let mut ids = HashSet::new();
     for record in records {
-        let Some(raw) = record.image_id.as_deref() else { continue; };
-        for image_id in raw.split(',').map(|item| item.trim()).filter(|item| !item.is_empty()) {
+        let Some(raw) = record.image_id.as_deref() else {
+            continue;
+        };
+        for image_id in raw
+            .split(',')
+            .map(|item| item.trim())
+            .filter(|item| !item.is_empty())
+        {
             if is_valid_image_id(image_id) {
                 ids.insert(image_id.to_string());
             }
@@ -57,20 +64,24 @@ pub fn read_image_file(image_id: &str) -> Result<Option<Vec<u8>>, String> {
     if !path.exists() {
         return Ok(None);
     }
-    std::fs::read(path).map(Some).map_err(|e| format!("读取局域网同步图片失败: {}", e))
+    std::fs::read(path)
+        .map(Some)
+        .map_err(|e| format!("读取局域网同步图片失败: {}", e))
 }
 
 pub fn save_image_file(image_id: &str, bytes: &[u8]) -> Result<(), String> {
     let path = image_path(image_id)?;
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| format!("创建局域网同步图片目录失败: {}", e))?;
+        std::fs::create_dir_all(parent)
+            .map_err(|e| format!("创建局域网同步图片目录失败: {}", e))?;
     }
     std::fs::write(path, bytes).map_err(|e| format!("保存局域网同步图片失败: {}", e))
 }
 
 pub fn outgoing_file_info(path: &str) -> Result<(String, PathBuf, u64), String> {
     let path = PathBuf::from(path);
-    let metadata = std::fs::metadata(&path).map_err(|e| format!("读取待传输文件信息失败: {}", e))?;
+    let metadata =
+        std::fs::metadata(&path).map_err(|e| format!("读取待传输文件信息失败: {}", e))?;
     if !metadata.is_file() {
         return Err("只能传输普通文件".to_string());
     }
@@ -94,7 +105,10 @@ pub fn prepare_received_file(file_name: &str) -> Result<ReceivedFileReservation,
     let final_path = unique_path(&dir, &safe_name, &reserved_paths);
     reserved.insert(final_path.clone());
     let temp_path = dir.join(format!(".{}.qcpart", Uuid::new_v4()));
-    Ok(ReceivedFileReservation { final_path, temp_path })
+    Ok(ReceivedFileReservation {
+        final_path,
+        temp_path,
+    })
 }
 
 pub fn commit_received_file(reservation: &ReceivedFileReservation) -> Result<PathBuf, String> {
@@ -146,15 +160,18 @@ pub fn record_received_file(
         .filter(|value| !value.trim().is_empty())
         .unwrap_or("file")
         .to_string();
-    index.files.insert(path_key.clone(), ReceivedFileMetadata {
-        path: path_key,
-        name,
-        size,
-        sha256: sha256.to_string(),
-        source_device_id: source_device_id.trim().to_string(),
-        source_device_name: source_device_name.trim().to_string(),
-        received_at: chrono::Utc::now().timestamp_millis(),
-    });
+    index.files.insert(
+        path_key.clone(),
+        ReceivedFileMetadata {
+            path: path_key,
+            name,
+            size,
+            sha256: sha256.to_string(),
+            source_device_id: source_device_id.trim().to_string(),
+            source_device_name: source_device_name.trim().to_string(),
+            received_at: chrono::Utc::now().timestamp_millis(),
+        },
+    );
     save_received_file_index(&index)
 }
 
@@ -207,7 +224,9 @@ pub fn received_files_dir() -> Result<PathBuf, String> {
 pub fn is_received_file_internal(path: &Path) -> bool {
     path.file_name()
         .and_then(|value| value.to_str())
-        .map(|name| name == RECEIVED_FILE_INDEX_NAME || name.starts_with('.') || name.ends_with(".qcpart"))
+        .map(|name| {
+            name == RECEIVED_FILE_INDEX_NAME || name.starts_with('.') || name.ends_with(".qcpart")
+        })
         .unwrap_or(false)
 }
 
@@ -220,22 +239,18 @@ fn load_received_file_index() -> Result<ReceivedFileIndex, String> {
     if !path.exists() {
         return Ok(ReceivedFileIndex::default());
     }
-    let bytes = std::fs::read(&path)
-        .map_err(|e| format!("读取接收文件索引失败: {}", e))?;
-    serde_json::from_slice(&bytes)
-        .map_err(|e| format!("解析接收文件索引失败: {}", e))
+    let bytes = std::fs::read(&path).map_err(|e| format!("读取接收文件索引失败: {}", e))?;
+    serde_json::from_slice(&bytes).map_err(|e| format!("解析接收文件索引失败: {}", e))
 }
 
 fn save_received_file_index(index: &ReceivedFileIndex) -> Result<(), String> {
     let path = received_file_index_path()?;
     if let Some(parent) = path.parent() {
-        std::fs::create_dir_all(parent)
-            .map_err(|e| format!("创建接收文件索引目录失败: {}", e))?;
+        std::fs::create_dir_all(parent).map_err(|e| format!("创建接收文件索引目录失败: {}", e))?;
     }
-    let bytes = serde_json::to_vec_pretty(index)
-        .map_err(|e| format!("序列化接收文件索引失败: {}", e))?;
-    std::fs::write(&path, bytes)
-        .map_err(|e| format!("保存接收文件索引失败: {}", e))
+    let bytes =
+        serde_json::to_vec_pretty(index).map_err(|e| format!("序列化接收文件索引失败: {}", e))?;
+    std::fs::write(&path, bytes).map_err(|e| format!("保存接收文件索引失败: {}", e))
 }
 
 fn received_file_path_key(path: &Path) -> String {
@@ -299,7 +314,9 @@ fn unique_path(dir: &Path, file_name: &str, reserved: &HashSet<PathBuf>) -> Path
         .and_then(|name| name.to_str())
         .filter(|name| !name.is_empty())
         .unwrap_or("file");
-    let ext = Path::new(file_name).extension().and_then(|ext| ext.to_str());
+    let ext = Path::new(file_name)
+        .extension()
+        .and_then(|ext| ext.to_str());
     let mut path = dir.join(file_name);
     let mut index = 1u32;
     while path.exists() || reserved.contains(&path) {

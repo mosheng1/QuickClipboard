@@ -160,7 +160,11 @@ fn build_option(
 }
 
 fn primary_type(content_type: &str) -> &str {
-    content_type.split(',').next().unwrap_or(content_type).trim()
+    content_type
+        .split(',')
+        .next()
+        .unwrap_or(content_type)
+        .trim()
 }
 
 fn has_type(content_type: &str, target: &str) -> bool {
@@ -168,7 +172,9 @@ fn has_type(content_type: &str, target: &str) -> bool {
 }
 
 fn has_raw_format(raw_formats: &[ClipboardDataItem], format_name: &str) -> bool {
-    raw_formats.iter().any(|item| item.format_name == format_name)
+    raw_formats
+        .iter()
+        .any(|item| item.format_name == format_name)
 }
 
 fn is_primary_raw(raw_formats: &[ClipboardDataItem], format_name: &str) -> bool {

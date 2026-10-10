@@ -6,7 +6,8 @@ use image::ImageFormat;
 
 use crate::services::database::ClipboardItem;
 use crate::services::paste::clipboard_content::{
-    parse_files_content_existing, set_clipboard_files, set_clipboard_rich_text, set_clipboard_text, FilesData,
+    parse_files_content_existing, set_clipboard_files, set_clipboard_rich_text, set_clipboard_text,
+    FilesData,
 };
 use crate::services::paste::keyboard::simulate_paste;
 use crate::utils::cf_html::normalize_clipboard_html;
@@ -92,8 +93,12 @@ fn build_merge_payload(items: &[ClipboardItem]) -> Result<MergePayload, String> 
 }
 
 fn determine_merge_payload(sources: Vec<MergeSource>) -> Result<MergePayload, String> {
-    let has_file = sources.iter().any(|source| matches!(source, MergeSource::File { .. }));
-    let has_non_file = sources.iter().any(|source| !matches!(source, MergeSource::File { .. }));
+    let has_file = sources
+        .iter()
+        .any(|source| matches!(source, MergeSource::File { .. }));
+    let has_non_file = sources
+        .iter()
+        .any(|source| !matches!(source, MergeSource::File { .. }));
 
     if has_file && has_non_file {
         return Err("文件类型不能与其他类型混合合并".to_string());
@@ -102,7 +107,10 @@ fn determine_merge_payload(sources: Vec<MergeSource>) -> Result<MergePayload, St
     if has_file {
         let mut paths = Vec::new();
         for source in sources {
-            if let MergeSource::File { paths: source_paths } = source {
+            if let MergeSource::File {
+                paths: source_paths,
+            } = source
+            {
                 paths.extend(source_paths);
             }
         }
@@ -138,7 +146,9 @@ fn determine_merge_payload(sources: Vec<MergeSource>) -> Result<MergePayload, St
         match source {
             MergeSource::Text { text, html } => {
                 plain_segments.push(text.clone());
-                html_segments.push(wrap_merge_html_block(&html.unwrap_or_else(|| plain_text_to_html(&text))));
+                html_segments.push(wrap_merge_html_block(
+                    &html.unwrap_or_else(|| plain_text_to_html(&text)),
+                ));
             }
             MergeSource::Image { text, html } => {
                 plain_segments.push(text);
@@ -269,10 +279,10 @@ fn image_path_to_data_url(path: &str) -> Result<String, String> {
 
 fn image_path_to_data_url_fast(path: &str) -> Result<String, String> {
     let bytes = std::fs::read(path).map_err(|e| format!("读取图片失败 [{}]: {}", path, e))?;
-    let format = image::guess_format(&bytes)
-        .map_err(|e| format!("识别图片格式失败 [{}]: {}", path, e))?;
-    let mime = image_format_to_mime(format)
-        .ok_or_else(|| format!("暂不支持的图片格式 [{}]", path))?;
+    let format =
+        image::guess_format(&bytes).map_err(|e| format!("识别图片格式失败 [{}]: {}", path, e))?;
+    let mime =
+        image_format_to_mime(format).ok_or_else(|| format!("暂不支持的图片格式 [{}]", path))?;
 
     Ok(format!(
         "data:{};base64,{}",
@@ -333,10 +343,7 @@ fn build_files_hash_payload(paths: &[String]) -> Result<String, String> {
 }
 
 fn wrap_merge_html_block(fragment: &str) -> String {
-    format!(
-        "<div style=\"margin:0 0 12px 0;\">{}</div>",
-        fragment
-    )
+    format!("<div style=\"margin:0 0 12px 0;\">{}</div>", fragment)
 }
 
 fn plain_text_to_html(text: &str) -> String {
@@ -370,7 +377,9 @@ mod tests {
             },
         ]);
 
-        assert!(matches!(result, Err(message) if message.contains("文件类型不能与其他类型混合合并")));
+        assert!(
+            matches!(result, Err(message) if message.contains("文件类型不能与其他类型混合合并"))
+        );
     }
 
     #[test]

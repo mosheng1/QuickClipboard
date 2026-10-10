@@ -19,13 +19,14 @@ mod windows_raw_input {
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows::Win32::System::Threading::GetCurrentThreadId;
     use windows::Win32::UI::Input::{
-        GetRawInputData, RegisterRawInputDevices, HRAWINPUT, RAWINPUT, RAWINPUTDEVICE, RAWINPUTHEADER,
-        RID_INPUT, RIDEV_INPUTSINK,
+        GetRawInputData, RegisterRawInputDevices, HRAWINPUT, RAWINPUT, RAWINPUTDEVICE,
+        RAWINPUTHEADER, RIDEV_INPUTSINK, RID_INPUT,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
-        CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, PeekMessageW, RegisterClassExW,
-        TranslateMessage, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, MSG, PM_NOREMOVE, WM_DESTROY, WM_INPUT,
-        WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP, WNDCLASSEXW, WS_OVERLAPPEDWINDOW,
+        CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, PeekMessageW,
+        RegisterClassExW, TranslateMessage, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, MSG,
+        PM_NOREMOVE, WM_DESTROY, WM_INPUT, WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP,
+        WNDCLASSEXW, WS_OVERLAPPEDWINDOW,
     };
 
     use crate::services::sound::AppSounds;
@@ -47,7 +48,8 @@ mod windows_raw_input {
     static QUICKPASTE_SECONDARY_KEY_VK: AtomicU32 = AtomicU32::new(0);
     static QUICKPASTE_SECONDARY_KEY_DOWN: AtomicBool = AtomicBool::new(false);
     static QUICKPASTE_SECONDARY_KEY_PRESS_ID: AtomicU64 = AtomicU64::new(0);
-    static LAST_TRAY_RECT: Lazy<Mutex<Option<(i32, i32, i32, i32)>>> = Lazy::new(|| Mutex::new(None));
+    static LAST_TRAY_RECT: Lazy<Mutex<Option<(i32, i32, i32, i32)>>> =
+        Lazy::new(|| Mutex::new(None));
     const VK_CONTROL_CODE: u32 = 0x11;
     const VK_LCONTROL_CODE: u32 = 0xA2;
     const VK_RCONTROL_CODE: u32 = 0xA3;
@@ -326,7 +328,11 @@ mod windows_raw_input {
                 }
 
                 if vkey == VK_LWIN_CODE || vkey == VK_RWIN_CODE {
-                    let state = if vkey == VK_LWIN_CODE { &LWIN_DOWN } else { &RWIN_DOWN };
+                    let state = if vkey == VK_LWIN_CODE {
+                        &LWIN_DOWN
+                    } else {
+                        &RWIN_DOWN
+                    };
                     if is_keydown {
                         state.store(true, Ordering::Relaxed);
                     } else if is_keyup {
@@ -338,7 +344,8 @@ mod windows_raw_input {
                 if is_keydown {
                     let is_ctrl_v = CTRL_DOWN.load(Ordering::Relaxed)
                         && (vkey == b'V' as u32 || vkey == b'v' as u32);
-                    let is_shift_insert = SHIFT_DOWN.load(Ordering::Relaxed) && vkey == VK_INSERT_CODE;
+                    let is_shift_insert =
+                        SHIFT_DOWN.load(Ordering::Relaxed) && vkey == VK_INSERT_CODE;
 
                     if is_ctrl_v || is_shift_insert {
                         AppSounds::play_paste_immediate();
@@ -354,8 +361,8 @@ mod windows_raw_input {
 
     #[cfg(target_os = "windows")]
     use windows::Win32::UI::Input::KeyboardAndMouse::{
-        GetAsyncKeyState, VK_CONTROL, VK_LCONTROL, VK_RCONTROL, VK_MENU, VK_LMENU, VK_RMENU,
-        VK_SHIFT, VK_LSHIFT, VK_RSHIFT, VK_LWIN, VK_RWIN,
+        GetAsyncKeyState, VK_CONTROL, VK_LCONTROL, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_MENU,
+        VK_RCONTROL, VK_RMENU, VK_RSHIFT, VK_RWIN, VK_SHIFT,
     };
 
     pub(crate) fn enable_quickpaste_keyboard_mode() {
@@ -430,9 +437,7 @@ mod windows_raw_input {
     }
 
     fn is_quickpaste_secondary_key_candidate(vk: u32) -> bool {
-        vk > 0
-            && quickpaste_modifier_mask_from_vk(vk) == 0
-            && !matches!(vk, 0x01..=0x06)
+        vk > 0 && quickpaste_modifier_mask_from_vk(vk) == 0 && !matches!(vk, 0x01..=0x06)
     }
 
     fn quickpaste_secondary_key_vk_from_shortcut(shortcut: &str) -> Option<u32> {
@@ -464,20 +469,42 @@ mod windows_raw_input {
             }
         }
 
-        if let Some(num) = key.strip_prefix("Numpad").and_then(|n| n.parse::<u32>().ok()) {
+        if let Some(num) = key
+            .strip_prefix("Numpad")
+            .and_then(|n| n.parse::<u32>().ok())
+        {
             if num <= 9 {
                 return Some(0x60 + num);
             }
         }
 
         const NAMED_KEY_VKS: &[(&str, u32)] = &[
-            ("Backquote", 0xC0), ("Minus", 0xBD), ("Equal", 0xBB), ("BracketLeft", 0xDB),
-            ("BracketRight", 0xDD), ("Backslash", 0xDC), ("Semicolon", 0xBA), ("Quote", 0xDE),
-            ("Comma", 0xBC), ("Period", 0xBE), ("Slash", 0xBF), ("Backspace", 0x08),
-            ("Insert", 0x2D), ("Delete", 0x2E), ("Home", 0x24), ("End", 0x23),
-            ("PageUp", 0x21), ("PageDown", 0x22), ("Space", 0x20), ("Tab", 0x09),
-            ("Enter", 0x0D), ("Escape", 0x1B), ("ArrowUp", 0x26), ("ArrowDown", 0x28),
-            ("ArrowLeft", 0x25), ("ArrowRight", 0x27),
+            ("Backquote", 0xC0),
+            ("Minus", 0xBD),
+            ("Equal", 0xBB),
+            ("BracketLeft", 0xDB),
+            ("BracketRight", 0xDD),
+            ("Backslash", 0xDC),
+            ("Semicolon", 0xBA),
+            ("Quote", 0xDE),
+            ("Comma", 0xBC),
+            ("Period", 0xBE),
+            ("Slash", 0xBF),
+            ("Backspace", 0x08),
+            ("Insert", 0x2D),
+            ("Delete", 0x2E),
+            ("Home", 0x24),
+            ("End", 0x23),
+            ("PageUp", 0x21),
+            ("PageDown", 0x22),
+            ("Space", 0x20),
+            ("Tab", 0x09),
+            ("Enter", 0x0D),
+            ("Escape", 0x1B),
+            ("ArrowUp", 0x26),
+            ("ArrowDown", 0x28),
+            ("ArrowLeft", 0x25),
+            ("ArrowRight", 0x27),
         ];
 
         NAMED_KEY_VKS
@@ -638,8 +665,7 @@ mod windows_raw_input {
         false
     }
 
-    fn handle_wheel_event_impl(_delta_y: i64) {
-    }
+    fn handle_wheel_event_impl(_delta_y: i64) {}
 
     fn current_unix_ms() -> u64 {
         SystemTime::now()
@@ -761,7 +787,9 @@ mod windows_raw_input {
         }
 
         let threshold_ms = settings.mouse_middle_button_long_press_ms.max(1) as u64;
-        let press_id = MIDDLE_BUTTON_PRESS_ID.fetch_add(1, Ordering::SeqCst).wrapping_add(1);
+        let press_id = MIDDLE_BUTTON_PRESS_ID
+            .fetch_add(1, Ordering::SeqCst)
+            .wrapping_add(1);
         MIDDLE_BUTTON_DOWN.store(true, Ordering::SeqCst);
 
         thread::spawn(move || {
@@ -797,8 +825,10 @@ mod windows_raw_input {
             Err(_) => return false,
         };
 
-        cursor_x < win_x || cursor_x > win_x + win_width as i32
-            || cursor_y < win_y || cursor_y > win_y + win_height as i32
+        cursor_x < win_x
+            || cursor_x > win_x + win_width as i32
+            || cursor_y < win_y
+            || cursor_y > win_y + win_height as i32
     }
 
     fn handle_preview_guard_check_impl() {
@@ -852,10 +882,14 @@ mod windows_raw_input {
 
         if crate::is_context_menu_visible() {
             if let Some(main_window) = input_common::try_get_main_window() {
-                if let Some(menu_window) = main_window.app_handle().get_webview_window("context-menu") {
+                if let Some(menu_window) =
+                    main_window.app_handle().get_webview_window("context-menu")
+                {
                     let (cursor_x, cursor_y) = crate::mouse::get_cursor_position();
                     if menu_window.is_visible().unwrap_or(false)
-                        && !crate::windows::plugins::context_menu::is_point_in_menu_region(cursor_x, cursor_y)
+                        && !crate::windows::plugins::context_menu::is_point_in_menu_region(
+                            cursor_x, cursor_y,
+                        )
                     {
                         let _ = menu_window.emit("close-context-menu", ());
                     }
@@ -889,11 +923,8 @@ mod windows_raw_input {
 
 #[cfg(target_os = "windows")]
 pub(crate) use windows_raw_input::{
-    disable_quickpaste_keyboard_mode,
-    enable_quickpaste_keyboard_mode,
-    get_physical_modifier_keys_state,
-    guard_tray_click_region,
-    start_quickpaste_secondary_key_hold,
+    disable_quickpaste_keyboard_mode, enable_quickpaste_keyboard_mode,
+    get_physical_modifier_keys_state, guard_tray_click_region, start_quickpaste_secondary_key_hold,
     start_raw_input_if_needed,
 };
 

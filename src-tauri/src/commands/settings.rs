@@ -1,7 +1,7 @@
-use crate::services::{AppSettings, get_settings, update_settings, get_data_directory};
 use crate::services::settings::storage::SettingsStorage;
-use tauri::Manager;
+use crate::services::{get_data_directory, get_settings, update_settings, AppSettings};
 use serde_json::Value;
+use tauri::Manager;
 
 const ONE_TIME_PASTE_STORE_KEY: &str = "tool.one_time_paste_enabled";
 const DEFAULT_MAIN_WINDOW_WIDTH: u32 = 360;
@@ -10,7 +10,7 @@ const DEFAULT_MAIN_WINDOW_HEIGHT: u32 = 520;
 fn handle_disable_edge_hide(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let state = crate::windows::main_window::get_window_state();
-        
+
         if state.is_snapped {
             if state.is_hidden {
                 let _ = crate::windows::main_window::show_snapped_window(&window);
@@ -110,7 +110,8 @@ pub fn save_settings(mut settings: AppSettings, app: tauri::AppHandle) -> Result
         handle_disable_edge_hide(&app);
     }
 
-    settings.update_check_interval = normalize_update_check_interval(&settings.update_check_interval);
+    settings.update_check_interval =
+        normalize_update_check_interval(&settings.update_check_interval);
     if remember_window_size_enabled {
         settings.saved_window_size = capture_main_window_logical_size(&app);
     } else if !settings.remember_window_size {
@@ -119,30 +120,33 @@ pub fn save_settings(mut settings: AppSettings, app: tauri::AppHandle) -> Result
     if webdav_crypto_scope_changed {
         crate::services::webdav_sync::crypto::clear_cached_keys();
     }
-    
+
     update_settings(settings.clone())?;
 
     if remember_window_size_disabled {
         restore_main_window_default_size(&app);
     }
-    
+
     if let Err(e) = crate::hotkey::reload_from_settings() {
         eprintln!("重新加载快捷键失败: {}", e);
     }
-    
+
     if clipboard_monitor_changed {
         if settings.clipboard_monitor {
             crate::start_clipboard_monitor()?;
         } else {
             crate::stop_clipboard_monitor()?;
         }
-        
+
         use tauri::Emitter;
-        let _ = app.emit("settings-changed", serde_json::json!({
-            "clipboardMonitor": settings.clipboard_monitor
-        }));
+        let _ = app.emit(
+            "settings-changed",
+            serde_json::json!({
+                "clipboardMonitor": settings.clipboard_monitor
+            }),
+        );
     }
-    
+
     if quickpaste_enabled_changed {
         if settings.quickpaste_enabled {
             let app_clone = app.clone();
@@ -181,7 +185,7 @@ pub fn get_settings_cmd() -> AppSettings {
 pub fn set_edge_hide_enabled(enabled: bool, app: tauri::AppHandle) -> Result<(), String> {
     let mut settings = get_settings();
     settings.edge_hide_enabled = enabled;
-    
+
     if !enabled {
         settings.edge_snap_position = None;
         settings.edge_snap_edge = None;
@@ -189,7 +193,7 @@ pub fn set_edge_hide_enabled(enabled: bool, app: tauri::AppHandle) -> Result<(),
         settings.edge_snap_monitor_id = None;
         handle_disable_edge_hide(&app);
     }
-    
+
     update_settings(settings)?;
     Ok(())
 }
@@ -201,7 +205,9 @@ pub fn get_all_windows_info_cmd() -> Result<Vec<crate::services::system::AppInfo
 
 #[tauri::command]
 pub fn is_portable_mode() -> bool {
-    if crate::services::is_portable_build() { return true; }
+    if crate::services::is_portable_build() {
+        return true;
+    }
     use std::env;
     env::current_exe()
         .ok()
@@ -285,15 +291,19 @@ pub fn toggle_clipboard_monitor(app: &tauri::AppHandle) -> Result<(), String> {
     let mut settings = get_settings();
     settings.clipboard_monitor = !settings.clipboard_monitor;
     let enabled = settings.clipboard_monitor;
-    
+
     let result = save_settings(settings, app.clone());
     if crate::services::low_memory::is_low_memory_mode() {
         let _ = crate::windows::tray::native_menu::update_native_menu(app);
     }
 
-    let message = if enabled { "剪贴板监听已启用" } else { "剪贴板监听已禁用" };
+    let message = if enabled {
+        "剪贴板监听已启用"
+    } else {
+        "剪贴板监听已禁用"
+    };
     let _ = crate::services::notification::show_notification(app, "QuickClipboard", message);
-    
+
     result
 }
 
@@ -302,20 +312,27 @@ pub fn toggle_paste_with_format(app: &tauri::AppHandle) -> Result<(), String> {
     let mut settings = get_settings();
     settings.paste_with_format = !settings.paste_with_format;
     let enabled = settings.paste_with_format;
-    
+
     use tauri::Emitter;
-    let _ = app.emit("settings-changed", serde_json::json!({
-        "pasteWithFormat": settings.paste_with_format
-    }));
-    
+    let _ = app.emit(
+        "settings-changed",
+        serde_json::json!({
+            "pasteWithFormat": settings.paste_with_format
+        }),
+    );
+
     let result = save_settings(settings, app.clone());
     if crate::services::low_memory::is_low_memory_mode() {
         let _ = crate::windows::tray::native_menu::update_native_menu(app);
     }
 
-    let message = if enabled { "格式粘贴已启用" } else { "格式粘贴已禁用" };
+    let message = if enabled {
+        "格式粘贴已启用"
+    } else {
+        "格式粘贴已禁用"
+    };
     let _ = crate::services::notification::show_notification(app, "QuickClipboard", message);
-    
+
     result
 }
 
@@ -409,4 +426,3 @@ pub fn set_one_time_paste_enabled(enabled: bool) -> Result<bool, String> {
     crate::services::store::set(ONE_TIME_PASTE_STORE_KEY, &enabled)?;
     Ok(enabled)
 }
-

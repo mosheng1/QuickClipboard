@@ -5,8 +5,8 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 use tauri::{
-    AppHandle, DragDropEvent, Emitter, Manager, PhysicalPosition, PhysicalSize, Url,
-    WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent,
+    AppHandle, DragDropEvent, Emitter, Manager, PhysicalPosition, PhysicalSize, Url, WebviewUrl,
+    WebviewWindow, WebviewWindowBuilder, WindowEvent,
 };
 
 const DROP_PROXY_LABEL: &str = "drop-proxy";
@@ -93,10 +93,12 @@ fn create_drop_proxy(app: &AppHandle) -> Result<WebviewWindow, String> {
     .resizable(false)
     .focusable(false)
     .maximizable(false)
-    .minimizable(false)
-    .drag_and_drop(true)
-    .build()
-    .map_err(|e| format!("创建拖放代理窗口失败: {}", e))?;
+    .minimizable(false);
+    #[cfg(windows)]
+    let window = window.drag_and_drop(true);
+    let window = window
+        .build()
+        .map_err(|e| format!("创建拖放代理窗口失败: {}", e))?;
 
     bind_drop_events(&window, app.clone());
 
@@ -196,7 +198,11 @@ pub async fn ensure_drop_proxy(app: AppHandle) -> Result<(), String> {
     run_on_main_thread_result(&app, move || ensure_drop_proxy_sync(&task_app)).await
 }
 
-fn show_drop_proxy_sync(app: &AppHandle, target_label: &str, bounds: DropProxyBounds) -> Result<(), String> {
+fn show_drop_proxy_sync(
+    app: &AppHandle,
+    target_label: &str,
+    bounds: DropProxyBounds,
+) -> Result<(), String> {
     let window = app
         .get_webview_window(target_label)
         .ok_or_else(|| "目标窗口不存在，无法显示拖放代理".to_string())?;
@@ -245,7 +251,10 @@ pub async fn show_drop_proxy(window: WebviewWindow, bounds: DropProxyBounds) -> 
     let app = window.app_handle();
     let target_label = window.label().to_string();
     let task_app = app.clone();
-    run_on_main_thread_result(&app, move || show_drop_proxy_sync(&task_app, &target_label, bounds)).await
+    run_on_main_thread_result(&app, move || {
+        show_drop_proxy_sync(&task_app, &target_label, bounds)
+    })
+    .await
 }
 
 pub fn hide_drop_proxy(app: &AppHandle) -> Result<(), String> {
@@ -313,22 +322,30 @@ pub fn route_paths_at_cursor(
     })
 }
 
-pub async fn save_drop_resource(filename: String, data: Vec<u8>) -> Result<DropProxyResourcePayload, String> {
+pub async fn save_drop_resource(
+    filename: String,
+    data: Vec<u8>,
+) -> Result<DropProxyResourcePayload, String> {
     tokio::task::spawn_blocking(move || save_drop_resource_blocking(&filename, &data))
         .await
         .map_err(|error| format!("保存拖放资源任务失败: {}", error))?
 }
 
-pub async fn save_drop_url(filename: String, url: String) -> Result<DropProxyResourcePayload, String> {
+pub async fn save_drop_url(
+    filename: String,
+    url: String,
+) -> Result<DropProxyResourcePayload, String> {
     tokio::task::spawn_blocking(move || save_drop_url_blocking(&filename, &url))
         .await
         .map_err(|error| format!("保存拖放 URL 任务失败: {}", error))?
 }
 
 pub async fn cleanup_orphan_resources(min_age_ms: u64) -> Result<DropProxyCleanupPayload, String> {
-    tokio::task::spawn_blocking(move || cleanup_orphan_resources_blocking(Duration::from_millis(min_age_ms)))
-        .await
-        .map_err(|error| format!("清理拖放临时资源任务失败: {}", error))?
+    tokio::task::spawn_blocking(move || {
+        cleanup_orphan_resources_blocking(Duration::from_millis(min_age_ms))
+    })
+    .await
+    .map_err(|error| format!("清理拖放临时资源任务失败: {}", error))?
 }
 
 pub fn schedule_cleanup_orphan_resources(min_age_ms: u64, delay_ms: u64) {
@@ -342,7 +359,10 @@ fn resource_dir() -> Result<PathBuf, String> {
     Ok(crate::services::get_data_directory()?.join(DROP_PROXY_RESOURCE_DIR))
 }
 
-fn save_drop_resource_blocking(filename: &str, data: &[u8]) -> Result<DropProxyResourcePayload, String> {
+fn save_drop_resource_blocking(
+    filename: &str,
+    data: &[u8],
+) -> Result<DropProxyResourcePayload, String> {
     if data.is_empty() {
         return Err("拖放资源内容为空".to_string());
     }
@@ -353,8 +373,7 @@ fn save_drop_resource_blocking(filename: &str, data: &[u8]) -> Result<DropProxyR
 
     let safe_name = sanitize_filename(filename);
     let path = next_available_path(&target_dir, &safe_name);
-    std::fs::write(&path, data)
-        .map_err(|error| format!("写入拖放资源失败: {}", error))?;
+    std::fs::write(&path, data).map_err(|error| format!("写入拖放资源失败: {}", error))?;
 
     Ok(DropProxyResourcePayload {
         path: path.to_string_lossy().to_string(),
@@ -367,8 +386,8 @@ fn save_drop_url_blocking(filename: &str, url: &str) -> Result<DropProxyResource
         return Err("拖放 URL 为空".to_string());
     }
 
-    let parsed = reqwest::Url::parse(url)
-        .map_err(|error| format!("解析拖放 URL 失败: {}", error))?;
+    let parsed =
+        reqwest::Url::parse(url).map_err(|error| format!("解析拖放 URL 失败: {}", error))?;
     match parsed.scheme() {
         "http" | "https" => {}
         _ => return Err("仅支持 http 或 https 拖放 URL".to_string()),
@@ -476,7 +495,12 @@ fn resolve_url_filename(filename: &str, url_path: &str, content_type: &str) -> S
 }
 
 fn extension_from_content_type(content_type: &str) -> Option<&'static str> {
-    let normalized = content_type.split(';').next().unwrap_or("").trim().to_lowercase();
+    let normalized = content_type
+        .split(';')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_lowercase();
     match normalized.as_str() {
         "image/png" => Some("png"),
         "image/jpeg" | "image/jpg" => Some("jpg"),

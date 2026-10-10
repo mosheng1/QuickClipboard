@@ -1,15 +1,15 @@
-mod models;
-pub mod connection;
 pub mod clipboard;
+pub mod connection;
 pub mod favorites;
 pub mod groups;
+mod models;
 pub mod tombstones;
 
-pub use models::*;
-pub use connection::init_database;
 pub use clipboard::*;
+pub use connection::init_database;
 pub use favorites::*;
 pub use groups::*;
+pub use models::*;
 pub use tombstones::*;
 
 pub fn webdav_local_sync_parts_signature() -> Result<WebdavLocalSyncSignature, String> {
@@ -50,4 +50,3 @@ pub struct WebdavLocalSyncSignature {
     pub groups: String,
     pub tombstones: String,
 }
-

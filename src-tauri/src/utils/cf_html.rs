@@ -16,7 +16,10 @@ pub fn generate_cf_html(html: &str) -> String {
     let end_html = start_html + html_content.len();
 
     let start_fragment = start_html + html_content.find("<!--StartFragment-->").unwrap_or(0);
-    let end_fragment = start_html + html_content.find("<!--EndFragment-->").unwrap_or(html_content.len());
+    let end_fragment = start_html
+        + html_content
+            .find("<!--EndFragment-->")
+            .unwrap_or(html_content.len());
 
     format!(
         "Version:0.9\r\nStartHTML:{:010}\r\nEndHTML:{:010}\r\nStartFragment:{:010}\r\nEndFragment:{:010}\r\n{}",
@@ -66,7 +69,8 @@ fn extract_cf_html_by_offsets(s: &str) -> Option<String> {
     let bytes = s.as_bytes();
     let len = bytes.len();
 
-    let start_fragment = parse_offset(s, "StartFragment:").or_else(|| parse_offset(s, "StartHTML:"));
+    let start_fragment =
+        parse_offset(s, "StartFragment:").or_else(|| parse_offset(s, "StartHTML:"));
     let end_fragment = parse_offset(s, "EndFragment:").or_else(|| parse_offset(s, "EndHTML:"));
 
     let (start, end) = match (start_fragment, end_fragment) {
@@ -74,5 +78,7 @@ fn extract_cf_html_by_offsets(s: &str) -> Option<String> {
         _ => return None,
     };
 
-    std::str::from_utf8(&bytes[start..end]).ok().map(|t| t.to_string())
+    std::str::from_utf8(&bytes[start..end])
+        .ok()
+        .map(|t| t.to_string())
 }

@@ -18,9 +18,7 @@ pub async fn push_to_peer(device_id: &str) -> Result<SyncReport, String> {
     if !tombstones.is_empty() {
         let _ = super::http_client::push_peer_tombstones(
             &peer,
-            super::LanTombstoneBatch {
-                tombstones,
-            },
+            super::LanTombstoneBatch { tombstones },
         )
         .await?;
     }
@@ -31,10 +29,11 @@ pub async fn push_to_peer(device_id: &str) -> Result<SyncReport, String> {
         local_history_metas,
         &remote_snapshot.tombstone_states,
     );
-    let history_metas_to_push = crate::services::sync_transfer::sync_plan::record_metas_newer_than_remote(
-        history_metas.clone(),
-        &remote_snapshot.history_states,
-    );
+    let history_metas_to_push =
+        crate::services::sync_transfer::sync_plan::record_metas_newer_than_remote(
+            history_metas.clone(),
+            &remote_snapshot.history_states,
+        );
     let history_records_to_push = load_history_records(&history_metas_to_push, &local_device_id)?;
     if !history_records_to_push.is_empty() {
         let history_image_records = history_records_to_push.clone();
@@ -45,7 +44,8 @@ pub async fn push_to_peer(device_id: &str) -> Result<SyncReport, String> {
                 records: history_records_to_push,
             },
         )
-        .await {
+        .await
+        {
             Ok(value) => value,
             Err(e) => {
                 spawn_push_images(peer.clone(), "history", history_image_records);
@@ -54,9 +54,12 @@ pub async fn push_to_peer(device_id: &str) -> Result<SyncReport, String> {
         };
         report.pushed_clipboard = changed_history.records.len() as u32;
         report.pushed += report.pushed_clipboard;
-        report
-            .pushed_items
-            .extend(changed_history.records.iter().map(|record| record.report_item("clipboard")));
+        report.pushed_items.extend(
+            changed_history
+                .records
+                .iter()
+                .map(|record| record.report_item("clipboard")),
+        );
         spawn_push_images(peer.clone(), "history", history_image_records);
         image_task_started = true;
     }
@@ -67,11 +70,13 @@ pub async fn push_to_peer(device_id: &str) -> Result<SyncReport, String> {
         local_favorite_metas,
         &remote_snapshot.tombstone_states,
     );
-    let favorite_metas_to_push = crate::services::sync_transfer::sync_plan::record_metas_newer_than_remote(
-        favorite_metas.clone(),
-        &remote_snapshot.favorite_states,
-    );
-    let favorite_records_to_push = load_favorite_records(&favorite_metas_to_push, &local_device_id)?;
+    let favorite_metas_to_push =
+        crate::services::sync_transfer::sync_plan::record_metas_newer_than_remote(
+            favorite_metas.clone(),
+            &remote_snapshot.favorite_states,
+        );
+    let favorite_records_to_push =
+        load_favorite_records(&favorite_metas_to_push, &local_device_id)?;
     if !favorite_records_to_push.is_empty() {
         let favorite_image_records = favorite_records_to_push.clone();
         let changed_favorites = match super::http_client::push_peer_favorite_records(
@@ -81,7 +86,8 @@ pub async fn push_to_peer(device_id: &str) -> Result<SyncReport, String> {
                 records: favorite_records_to_push,
             },
         )
-        .await {
+        .await
+        {
             Ok(value) => value,
             Err(e) => {
                 spawn_push_images(peer.clone(), "favorites", favorite_image_records);
@@ -90,9 +96,12 @@ pub async fn push_to_peer(device_id: &str) -> Result<SyncReport, String> {
         };
         report.pushed_favorites = changed_favorites.records.len() as u32;
         report.pushed += report.pushed_favorites;
-        report
-            .pushed_items
-            .extend(changed_favorites.records.iter().map(|record| record.report_item("favorites")));
+        report.pushed_items.extend(
+            changed_favorites
+                .records
+                .iter()
+                .map(|record| record.report_item("favorites")),
+        );
         spawn_push_images(peer.clone(), "favorites", favorite_image_records);
         image_task_started = true;
     }
@@ -108,24 +117,22 @@ pub async fn push_to_peer(device_id: &str) -> Result<SyncReport, String> {
         &remote_snapshot.groups,
     );
     if !groups.is_empty() {
-        let changed_groups = super::http_client::push_peer_groups(
-            &peer,
-            super::LanGroupBatch {
-                groups,
-            },
-        )
-        .await?;
+        let changed_groups =
+            super::http_client::push_peer_groups(&peer, super::LanGroupBatch { groups }).await?;
         report.pushed_groups = changed_groups.groups.len() as u32;
         report.pushed += report.pushed_groups;
-        report.pushed_items.extend(changed_groups.groups.into_iter().map(|group| {
-            SyncReportItem {
-                category: "groups".to_string(),
-                id: group.name.clone(),
-                summary: group.name,
-                source_device_id: group.source_device_id,
-                updated_at: group.updated_at,
-            }
-        }));
+        report.pushed_items.extend(
+            changed_groups
+                .groups
+                .into_iter()
+                .map(|group| SyncReportItem {
+                    category: "groups".to_string(),
+                    id: group.name.clone(),
+                    summary: group.name,
+                    source_device_id: group.source_device_id,
+                    updated_at: group.updated_at,
+                }),
+        );
     }
 
     if !image_task_started && report.pushed == 0 {
@@ -142,7 +149,9 @@ fn load_history_records(
 ) -> Result<Vec<crate::services::webdav_sync::types::CloudRecord>, String> {
     let mut records = Vec::with_capacity(metas.len());
     for meta in metas {
-        if let Some(record) = crate::services::database::webdav_get_history_record_by_uuid(&meta.uuid, device_id)? {
+        if let Some(record) =
+            crate::services::database::webdav_get_history_record_by_uuid(&meta.uuid, device_id)?
+        {
             records.push(record);
         }
     }
@@ -155,7 +164,9 @@ fn load_favorite_records(
 ) -> Result<Vec<crate::services::webdav_sync::types::CloudRecord>, String> {
     let mut records = Vec::with_capacity(metas.len());
     for meta in metas {
-        if let Some(record) = crate::services::database::webdav_get_favorite_record_by_uuid(&meta.uuid, device_id)? {
+        if let Some(record) =
+            crate::services::database::webdav_get_favorite_record_by_uuid(&meta.uuid, device_id)?
+        {
             records.push(record);
         }
     }
@@ -169,7 +180,14 @@ fn spawn_push_images_from_metas(
 ) {
     let image_ids = metas
         .into_iter()
-        .flat_map(|meta| meta.image_id.unwrap_or_default().split(',').map(str::trim).map(str::to_string).collect::<Vec<_>>())
+        .flat_map(|meta| {
+            meta.image_id
+                .unwrap_or_default()
+                .split(',')
+                .map(str::trim)
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
         .filter(|image_id| !image_id.is_empty())
         .collect::<Vec<_>>();
     if image_ids.is_empty() {
@@ -215,7 +233,10 @@ async fn push_images_best_effort_by_ids(
         let Some(bytes) = (match super::files::read_image_file(&image_id) {
             Ok(bytes) => bytes,
             Err(e) => {
-                eprintln!("[局域网同步] 读取待推送图片失败 image_id={} 错误={}", image_id, e);
+                eprintln!(
+                    "[局域网同步] 读取待推送图片失败 image_id={} 错误={}",
+                    image_id, e
+                );
                 failed += 1;
                 continue;
             }
@@ -233,10 +254,6 @@ async fn push_images_best_effort_by_ids(
     }
     eprintln!(
         "[局域网同步] 后台推送图片完成 collection={} peer={} success={} missing={} failed={}",
-        collection,
-        peer.device_name,
-        sent,
-        missing,
-        failed
+        collection, peer.device_name, sent, missing, failed
     );
 }

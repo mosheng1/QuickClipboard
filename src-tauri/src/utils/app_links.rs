@@ -18,7 +18,10 @@ pub struct AppLinks {
 }
 
 static LINKS: Lazy<Result<AppLinks, String>> = Lazy::new(|| {
-    let json = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/../src/shared/config/appLinks.json"));
+    let json = include_str!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../src/shared/config/appLinks.json"
+    ));
     serde_json::from_str::<AppLinks>(json).map_err(|e| format!("appLinks.json 解析失败: {}", e))
 });
 

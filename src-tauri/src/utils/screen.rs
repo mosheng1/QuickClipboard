@@ -427,11 +427,6 @@ pub fn get_all_screens() -> Result<Vec<(i32, i32, i32, i32, f64)>, String> {
     ScreenUtils::get_all_monitors(app)
 }
 
-#[cfg(not(target_os = "windows"))]
-pub fn get_monitor_refresh_rate(_monitor: &xcap::Monitor) -> Option<u32> {
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

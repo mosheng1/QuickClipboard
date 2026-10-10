@@ -11,4 +11,3 @@ pub fn is_main_window_visible(app: &AppHandle) -> bool {
         false
     }
 }
-

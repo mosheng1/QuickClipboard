@@ -24,7 +24,8 @@ struct MenuRegions {
 
 impl MenuRegions {
     fn contains(&self, x: i32, y: i32) -> bool {
-        let hit = |r: &MenuRegion| x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height;
+        let hit =
+            |r: &MenuRegion| x >= r.x && x <= r.x + r.width && y >= r.y && y <= r.y + r.height;
         self.main.as_ref().map_or(false, hit) || self.subs.iter().any(hit)
     }
 
@@ -147,7 +148,11 @@ pub fn update_menu_regions(main: MenuRegion, subs: Vec<MenuRegion>) {
 }
 
 pub fn is_point_in_menu_region(x: i32, y: i32) -> bool {
-    state().regions.lock().map(|r| r.contains(x, y)).unwrap_or(false)
+    state()
+        .regions
+        .lock()
+        .map(|r| r.contains(x, y))
+        .unwrap_or(false)
 }
 
 pub fn clear_menu_regions() {

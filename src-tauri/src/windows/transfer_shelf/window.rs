@@ -98,7 +98,9 @@ pub fn apply_shelf_geometry(
     geometry: &ShelfGeometryPersisted,
 ) -> Result<ShelfGeometryPersisted, String> {
     let resolved = resolve_shelf_geometry(app, geometry)?;
-    let scale_factor = scale_factor_for_geometry(app, &resolved).unwrap_or(1.0).max(0.1);
+    let scale_factor = scale_factor_for_geometry(app, &resolved)
+        .unwrap_or(1.0)
+        .max(0.1);
     let logical_width = (resolved.width as f64 / scale_factor).max(1.0);
     let logical_height = (resolved.height as f64 / scale_factor).max(1.0);
     window
@@ -188,10 +190,9 @@ fn choose_work_area(
         .max_by_key(|area| intersection_area(*area, geometry.x, geometry.y, width, height))
         .filter(|area| intersection_area(*area, geometry.x, geometry.y, width, height) > 0)
         .or_else(|| {
-            work_areas
-                .iter()
-                .copied()
-                .min_by_key(|area| distance_to_area_center(*area, geometry.x, geometry.y, width, height))
+            work_areas.iter().copied().min_by_key(|area| {
+                distance_to_area_center(*area, geometry.x, geometry.y, width, height)
+            })
         })
 }
 
@@ -275,9 +276,7 @@ fn position_axis_at_cursor(
     stagger: i32,
 ) -> i32 {
     let area_end = area_start.saturating_add(area_size);
-    let mut value = cursor
-        .saturating_add(CURSOR_MARGIN)
-        .saturating_add(stagger);
+    let mut value = cursor.saturating_add(CURSOR_MARGIN).saturating_add(stagger);
 
     if value.saturating_add(window_size) > area_end {
         value = cursor

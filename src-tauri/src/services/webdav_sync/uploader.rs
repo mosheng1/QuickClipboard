@@ -2,7 +2,10 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use super::chunk_manager::{load_chunk, save_chunk};
 use super::index_manager::{load_index, save_index};
-use super::types::{CloudRecord, CloudRecordMeta, ImageFileIndex, ImageFileIndexEntry, RecordChunk, SyncCollection, SyncIndexEntry, SyncReport, CHUNK_RECORD_LIMIT};
+use super::types::{
+    CloudRecord, CloudRecordMeta, ImageFileIndex, ImageFileIndexEntry, RecordChunk, SyncCollection,
+    SyncIndexEntry, SyncReport, CHUNK_RECORD_LIMIT,
+};
 use super::webdav_client::WebdavClient;
 
 pub async fn upload_all(client: &WebdavClient, device_id: &str) -> Result<SyncReport, String> {
@@ -69,7 +72,15 @@ pub async fn upload_parts(
     };
 
     if let Some((index, history_records)) = history_records {
-        match upload_collection_incremental(client, SyncCollection::History, index, history_records.clone(), device_id).await {
+        match upload_collection_incremental(
+            client,
+            SyncCollection::History,
+            index,
+            history_records.clone(),
+            device_id,
+        )
+        .await
+        {
             Ok(records) => {
                 let count = records.len() as u32;
                 report.pushed += count;
@@ -85,7 +96,15 @@ pub async fn upload_parts(
 
     if settings.webdav_sync_favorites && (upload_favorites || upload_groups) {
         if let Some((index, favorite_records)) = favorite_records {
-            match upload_collection_incremental(client, SyncCollection::Favorites, index, favorite_records.clone(), device_id).await {
+            match upload_collection_incremental(
+                client,
+                SyncCollection::Favorites,
+                index,
+                favorite_records.clone(),
+                device_id,
+            )
+            .await
+            {
                 Ok(records) => {
                     let count = records.len() as u32;
                     report.pushed += count;
@@ -100,7 +119,13 @@ pub async fn upload_parts(
         }
 
         if upload_groups {
-            match super::groups_sync::upload_groups_with_tombstones(client, device_id, &tombstone_states).await {
+            match super::groups_sync::upload_groups_with_tombstones(
+                client,
+                device_id,
+                &tombstone_states,
+            )
+            .await
+            {
                 Ok(groups) => {
                     let count = groups.len() as u32;
                     report.pushed += count;
@@ -151,7 +176,10 @@ async fn upload_collection_incremental(
         }
 
         if let Some(entry) = index.entries.get(&record.uuid) {
-            existing_by_chunk.entry(entry.chunk).or_default().push(record.clone());
+            existing_by_chunk
+                .entry(entry.chunk)
+                .or_default()
+                .push(record.clone());
         } else {
             new_records.push(record.clone());
         }
@@ -279,7 +307,9 @@ fn load_history_records(
 ) -> Result<Vec<CloudRecord>, String> {
     let mut records = Vec::with_capacity(metas.len());
     for meta in metas {
-        if let Some(record) = crate::services::database::webdav_get_history_record_by_uuid(&meta.uuid, device_id)? {
+        if let Some(record) =
+            crate::services::database::webdav_get_history_record_by_uuid(&meta.uuid, device_id)?
+        {
             records.push(record);
         }
     }
@@ -292,7 +322,9 @@ fn load_favorite_records(
 ) -> Result<Vec<CloudRecord>, String> {
     let mut records = Vec::with_capacity(metas.len());
     for meta in metas {
-        if let Some(record) = crate::services::database::webdav_get_favorite_record_by_uuid(&meta.uuid, device_id)? {
+        if let Some(record) =
+            crate::services::database::webdav_get_favorite_record_by_uuid(&meta.uuid, device_id)?
+        {
             records.push(record);
         }
     }
@@ -333,7 +365,9 @@ async fn upload_images(client: &WebdavClient, records: &[CloudRecord]) -> Result
         if !changed {
             client.ensure_files_dir().await?;
         }
-        client.put_bytes(&format!("files/{}.png", image_id), bytes).await?;
+        client
+            .put_bytes(&format!("files/{}.png", image_id), bytes)
+            .await?;
         index.images.insert(
             image_id,
             ImageFileIndexEntry {
@@ -359,12 +393,17 @@ async fn load_image_file_index(client: &WebdavClient) -> Result<ImageFileIndex, 
     Ok(index.unwrap_or_default())
 }
 
-async fn save_image_file_index(client: &WebdavClient, index: &ImageFileIndex) -> Result<(), String> {
+async fn save_image_file_index(
+    client: &WebdavClient,
+    index: &ImageFileIndex,
+) -> Result<(), String> {
     client.put_json("files/index.json", index).await
 }
 
 fn collect_image_ids(out: &mut HashSet<String>, raw: Option<&str>) {
-    let Some(raw) = raw else { return; };
+    let Some(raw) = raw else {
+        return;
+    };
     for item in raw.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
         out.insert(item.to_string());
     }

@@ -1,6 +1,6 @@
 use tauri::{
-    AppHandle, Manager, PhysicalPosition, WebviewUrl, WebviewWindow,
-    WebviewWindowBuilder, WindowEvent,
+    AppHandle, Manager, PhysicalPosition, WebviewUrl, WebviewWindow, WebviewWindowBuilder,
+    WindowEvent,
 };
 
 pub const RECEIVE_BOX_LABEL: &str = "receive-box";
@@ -88,12 +88,7 @@ fn place_initial_position(app: &AppHandle, window: &WebviewWindow) {
     let _ = window.set_position(PhysicalPosition::new(target_x, target_y));
 }
 
-fn position_axis_at_cursor(
-    cursor: i32,
-    window_size: i32,
-    area_start: i32,
-    area_size: i32,
-) -> i32 {
+fn position_axis_at_cursor(cursor: i32, window_size: i32, area_start: i32, area_size: i32) -> i32 {
     let area_end = area_start.saturating_add(area_size);
     let mut value = cursor.saturating_add(CURSOR_MARGIN);
 

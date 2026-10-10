@@ -39,7 +39,10 @@ impl SettingsStorage {
         }
         env::current_exe()
             .ok()
-            .and_then(|exe| exe.parent().map(|p| p.join("portable.flag").exists() || p.join("portable.txt").exists()))
+            .and_then(|exe| {
+                exe.parent()
+                    .map(|p| p.join("portable.flag").exists() || p.join("portable.txt").exists())
+            })
             .unwrap_or(false)
     }
 
@@ -66,17 +69,19 @@ impl SettingsStorage {
 
     pub fn load() -> Result<AppSettings, String> {
         let path = Self::get_settings_path()?;
-        
+
         if !path.exists() {
             return Ok(AppSettings::default());
         }
 
         let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
         let has_legacy_lan_sync_settings = content.contains("\"lanSync");
-        let mut settings: AppSettings = serde_json::from_str(&content).map_err(|e| e.to_string())?;
+        let mut settings: AppSettings =
+            serde_json::from_str(&content).map_err(|e| e.to_string())?;
         let had_legacy_webdav_password = !settings.webdav_password.is_empty();
         if had_legacy_webdav_password {
-            if !settings.webdav_url.trim().is_empty() && !settings.webdav_username.trim().is_empty() {
+            if !settings.webdav_url.trim().is_empty() && !settings.webdav_username.trim().is_empty()
+            {
                 if let Err(e) = crate::services::secure_credentials::set_webdav_password(
                     &settings.webdav_url,
                     &settings.webdav_username,
@@ -96,7 +101,7 @@ impl SettingsStorage {
         if migrated {
             let _ = Self::save(&settings);
         }
-        
+
         Ok(settings)
     }
 
@@ -119,7 +124,7 @@ impl SettingsStorage {
                 return Ok(custom_dir);
             }
         }
-        
+
         let dir = Self::get_data_dir()?;
         fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
         Ok(dir)

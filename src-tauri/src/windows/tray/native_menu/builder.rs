@@ -96,8 +96,8 @@ fn create_menu(app: &AppHandle) -> Result<Menu<tauri::Wry>, String> {
         .map_err(|e| e.to_string())?;
     menu.append(&restart).map_err(|e| e.to_string())?;
 
-    let quit = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)
-        .map_err(|e| e.to_string())?;
+    let quit =
+        MenuItem::with_id(app, "quit", "退出", true, None::<&str>).map_err(|e| e.to_string())?;
     menu.append(&quit).map_err(|e| e.to_string())?;
 
     Ok(menu)

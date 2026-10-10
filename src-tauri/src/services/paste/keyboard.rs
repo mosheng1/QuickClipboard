@@ -1,11 +1,10 @@
 #[cfg(not(target_os = "windows"))]
-use enigo::{Enigo, Direction, Key, Keyboard, Settings};
+use enigo::{Direction, Enigo, Key, Keyboard, Settings};
 
 #[cfg(target_os = "windows")]
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetAsyncKeyState, SendInput, INPUT, INPUT_KEYBOARD, KEYBDINPUT,
-    KEYBD_EVENT_FLAGS, KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, VK_INSERT, VK_MENU,
-    VK_CONTROL, VK_SHIFT, VK_V,
+    GetAsyncKeyState, SendInput, INPUT, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS,
+    KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, VK_CONTROL, VK_INSERT, VK_MENU, VK_SHIFT, VK_V,
 };
 
 #[cfg(target_os = "windows")]
@@ -21,18 +20,28 @@ fn send_key(vk: u16, up: bool) {
             ki: KEYBDINPUT {
                 wVk: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY(vk),
                 wScan: 0,
-                dwFlags: if up { KEYEVENTF_KEYUP } else { KEYBD_EVENT_FLAGS(0) },
+                dwFlags: if up {
+                    KEYEVENTF_KEYUP
+                } else {
+                    KEYBD_EVENT_FLAGS(0)
+                },
                 time: 0,
                 dwExtraInfo: crate::services::system::raw_input::PASTE_INPUT_MARKER,
             },
         },
     };
-    unsafe { SendInput(&[input], std::mem::size_of::<INPUT>() as i32); }
+    unsafe {
+        SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
+    }
 }
 
 #[cfg(target_os = "windows")]
 fn send_key_ex(vk: u16, up: bool, extended: bool) {
-    let mut flags = if up { KEYEVENTF_KEYUP } else { KEYBD_EVENT_FLAGS(0) };
+    let mut flags = if up {
+        KEYEVENTF_KEYUP
+    } else {
+        KEYBD_EVENT_FLAGS(0)
+    };
     if extended {
         flags |= KEYEVENTF_EXTENDEDKEY;
     }
@@ -48,7 +57,9 @@ fn send_key_ex(vk: u16, up: bool, extended: bool) {
             },
         },
     };
-    unsafe { SendInput(&[input], std::mem::size_of::<INPUT>() as i32); }
+    unsafe {
+        SendInput(&[input], std::mem::size_of::<INPUT>() as i32);
+    }
 }
 
 #[cfg(target_os = "windows")]
@@ -63,13 +74,17 @@ static PASTE_SIMULATION_LOCK: Mutex<()> = Mutex::new(());
 #[cfg(target_os = "windows")]
 pub fn set_trigger_key_from_shortcut(shortcut: &str) {
     if let Some(vk) = parse_shortcut_key_vk(shortcut) {
-        *CURRENT_TRIGGER_KEY.lock().unwrap_or_else(|error| error.into_inner()) = Some(vk);
+        *CURRENT_TRIGGER_KEY
+            .lock()
+            .unwrap_or_else(|error| error.into_inner()) = Some(vk);
     }
 }
 
 #[cfg(target_os = "windows")]
 pub fn set_trigger_key_raw(vk: u16) {
-    *CURRENT_TRIGGER_KEY.lock().unwrap_or_else(|error| error.into_inner()) = Some(vk);
+    *CURRENT_TRIGGER_KEY
+        .lock()
+        .unwrap_or_else(|error| error.into_inner()) = Some(vk);
 }
 
 #[cfg(target_os = "windows")]
@@ -83,10 +98,7 @@ fn take_trigger_key() -> Option<u16> {
 // 从快捷键字符串解析非修饰键虚拟键码
 #[cfg(target_os = "windows")]
 fn parse_shortcut_key_vk(shortcut: &str) -> Option<u16> {
-    let key = shortcut
-        .split('+')
-        .last()?
-        .trim();
+    let key = shortcut.split('+').last()?.trim();
     if key.is_empty() {
         return None;
     }
@@ -197,7 +209,7 @@ pub fn simulate_paste() -> Result<(), String> {
         .lock()
         .unwrap_or_else(|error| error.into_inner());
     let settings = crate::get_settings();
-    
+
     if settings.paste_shortcut_mode == "ctrl_v" {
         simulate_paste_ctrl_v()
     } else {
@@ -252,23 +264,26 @@ fn simulate_paste_ctrl_v() -> Result<(), String> {
 // 模拟粘贴
 #[cfg(not(target_os = "windows"))]
 pub fn simulate_paste() -> Result<(), String> {
-    let mut enigo = Enigo::new(&Settings::default())
-        .map_err(|e| format!("创建键盘模拟器失败: {}", e))?;
+    let mut enigo =
+        Enigo::new(&Settings::default()).map_err(|e| format!("创建键盘模拟器失败: {}", e))?;
 
-    enigo.key(Key::Control, Direction::Press)
+    enigo
+        .key(Key::Control, Direction::Press)
         .map_err(|e| format!("按下Ctrl失败: {}", e))?;
-    
-    enigo.key(Key::Unicode('v'), Direction::Press)
+
+    enigo
+        .key(Key::Unicode('v'), Direction::Press)
         .map_err(|e| format!("按下V失败: {}", e))?;
-    
+
     std::thread::sleep(std::time::Duration::from_millis(8));
-    
-    enigo.key(Key::Unicode('v'), Direction::Release)
+
+    enigo
+        .key(Key::Unicode('v'), Direction::Release)
         .map_err(|e| format!("释放V失败: {}", e))?;
-    
-    enigo.key(Key::Control, Direction::Release)
+
+    enigo
+        .key(Key::Control, Direction::Release)
         .map_err(|e| format!("释放Ctrl失败: {}", e))?;
-    
+
     Ok(())
 }
-

@@ -21,7 +21,8 @@ const TRANSFER_FILES_PREFIX: &str = "/qc-transfer/files/";
 const MAX_REQUEST_BODY_SIZE: usize = super::files::MAX_DIRECT_TRANSFER_FILE_SIZE as usize;
 const FILE_TRANSFER_BUFFER_SIZE: usize = 1024 * 1024;
 
-static SERVER: Lazy<tokio::sync::Mutex<Option<ServerState>>> = Lazy::new(|| tokio::sync::Mutex::new(None));
+static SERVER: Lazy<tokio::sync::Mutex<Option<ServerState>>> =
+    Lazy::new(|| tokio::sync::Mutex::new(None));
 
 struct ServerState {
     port: u16,
@@ -113,15 +114,12 @@ pub fn is_running() -> bool {
 }
 
 pub fn running_port() -> Option<u16> {
-    SERVER
-        .try_lock()
-        .ok()
-        .and_then(|state| {
-            state
-                .as_ref()
-                .filter(|server| !server.task.is_finished())
-                .map(|server| server.port)
-        })
+    SERVER.try_lock().ok().and_then(|state| {
+        state
+            .as_ref()
+            .filter(|server| !server.task.is_finished())
+            .map(|server| server.port)
+    })
 }
 
 pub async fn start(app: AppHandle, config: LanHttpServerConfig) -> Result<u16, String> {
@@ -139,10 +137,7 @@ pub async fn start(app: AppHandle, config: LanHttpServerConfig) -> Result<u16, S
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", config.port))
         .await
         .map_err(|e| format!("局域网 HTTP 服务启动失败: {}", e))?;
-    let port = listener
-        .local_addr()
-        .map_err(|e| e.to_string())?
-        .port();
+    let port = listener.local_addr().map_err(|e| e.to_string())?.port();
     super::discovery::start_responder(port).await?;
     let task = tokio::spawn(async move {
         loop {
@@ -167,39 +162,58 @@ pub async fn stop() {
     super::discovery::stop_responder().await;
 }
 
-async fn handle_client(mut stream: tokio::net::TcpStream, remote_addr: std::net::SocketAddr, app: AppHandle) -> Result<(), String> {
+async fn handle_client(
+    mut stream: tokio::net::TcpStream,
+    remote_addr: std::net::SocketAddr,
+    app: AppHandle,
+) -> Result<(), String> {
     let mut request = read_request(&mut stream).await?;
     let response = if request.method == "PUT" && request.path.starts_with(TRANSFER_FILES_PREFIX) {
         receive_transfer_file_stream(&request, &mut stream, &app).await
     } else {
         read_request_body(&mut request, &mut stream, MAX_REQUEST_BODY_SIZE).await?;
         match (request.method.as_str(), request.path.as_str()) {
-        ("GET", HELLO_PATH) => json_response(200, serde_json::json!({
-            "device_id": super::runtime::device_id(),
-            "device_name": super::runtime::device_name(),
-            "protocol": "quickclipboard-sync-transfer-lan-http",
-            "version": 1,
-        })),
-        ("POST", PAIRING_CONFIRM_PATH) => handle_pairing_confirm(&request, remote_addr, &app),
-        ("GET", STATUS_PATH) => authorized_json(&request, || Ok(super::runtime::status())),
-        ("GET", SNAPSHOT_PATH) => authorized_json(&request, super::snapshot::snapshot),
-        ("GET", HISTORY_RECORDS_PATH) => authorized_json(&request, || {
-            super::snapshot::list_history_records_since(query_i64(&request, "since"))
-        }),
-        ("POST", HISTORY_RECORDS_PATH) => authorized_receive_json(&request, || save_history_records(&request, &app)),
-        ("GET", FAVORITE_RECORDS_PATH) => authorized_json(&request, || {
-            super::snapshot::list_favorite_records_since(query_i64(&request, "since"))
-        }),
-        ("POST", FAVORITE_RECORDS_PATH) => authorized_receive_json(&request, || save_favorite_records(&request, &app)),
-        ("GET", GROUPS_PATH) => authorized_json(&request, super::snapshot::list_groups),
-        ("POST", GROUPS_PATH) => authorized_receive_json(&request, || save_groups(&request, &app)),
-        ("GET", TOMBSTONES_PATH) => authorized_json(&request, || {
-            super::snapshot::list_tombstones_since(query_i64(&request, "since"))
-        }),
-        ("POST", TOMBSTONES_PATH) => authorized_receive_json(&request, || save_tombstones(&request, &app)),
-        ("GET", path) if path.starts_with(FILES_PREFIX) => authorized_bytes(&request, || read_file(path)),
-        ("PUT", path) if path.starts_with(FILES_PREFIX) => authorized_receive_json(&request, || save_file(path, &request.body)),
-        _ => json_response(404, serde_json::json!({ "message": "未找到接口" })),
+            ("GET", HELLO_PATH) => json_response(
+                200,
+                serde_json::json!({
+                    "device_id": super::runtime::device_id(),
+                    "device_name": super::runtime::device_name(),
+                    "protocol": "quickclipboard-sync-transfer-lan-http",
+                    "version": 1,
+                }),
+            ),
+            ("POST", PAIRING_CONFIRM_PATH) => handle_pairing_confirm(&request, remote_addr, &app),
+            ("GET", STATUS_PATH) => authorized_json(&request, || Ok(super::runtime::status())),
+            ("GET", SNAPSHOT_PATH) => authorized_json(&request, super::snapshot::snapshot),
+            ("GET", HISTORY_RECORDS_PATH) => authorized_json(&request, || {
+                super::snapshot::list_history_records_since(query_i64(&request, "since"))
+            }),
+            ("POST", HISTORY_RECORDS_PATH) => {
+                authorized_receive_json(&request, || save_history_records(&request, &app))
+            }
+            ("GET", FAVORITE_RECORDS_PATH) => authorized_json(&request, || {
+                super::snapshot::list_favorite_records_since(query_i64(&request, "since"))
+            }),
+            ("POST", FAVORITE_RECORDS_PATH) => {
+                authorized_receive_json(&request, || save_favorite_records(&request, &app))
+            }
+            ("GET", GROUPS_PATH) => authorized_json(&request, super::snapshot::list_groups),
+            ("POST", GROUPS_PATH) => {
+                authorized_receive_json(&request, || save_groups(&request, &app))
+            }
+            ("GET", TOMBSTONES_PATH) => authorized_json(&request, || {
+                super::snapshot::list_tombstones_since(query_i64(&request, "since"))
+            }),
+            ("POST", TOMBSTONES_PATH) => {
+                authorized_receive_json(&request, || save_tombstones(&request, &app))
+            }
+            ("GET", path) if path.starts_with(FILES_PREFIX) => {
+                authorized_bytes(&request, || read_file(path))
+            }
+            ("PUT", path) if path.starts_with(FILES_PREFIX) => {
+                authorized_receive_json(&request, || save_file(path, &request.body))
+            }
+            _ => json_response(404, serde_json::json!({ "message": "未找到接口" })),
         }
     };
     write_response(&mut stream, response).await
@@ -212,7 +226,10 @@ fn handle_pairing_confirm(
 ) -> HttpResponse {
     let input = serde_json::from_slice::<HttpPairingConfirmRequest>(&request.body)
         .map_err(|e| format!("解析配对请求失败: {}", e));
-    match input.map(|input| normalize_pairing_base_url(input, remote_addr)).and_then(confirm_pairing) {
+    match input
+        .map(|input| normalize_pairing_base_url(input, remote_addr))
+        .and_then(confirm_pairing)
+    {
         Ok(output) => {
             let _ = app.emit("sync-transfer-lan-peers-changed", serde_json::json!({}));
             json_response(200, output)
@@ -227,7 +244,10 @@ where
     F: FnOnce() -> Result<T, String>,
 {
     if !is_authorized_request(request) {
-        return json_response(403, serde_json::json!({ "message": "未授权的局域网同步请求" }));
+        return json_response(
+            403,
+            serde_json::json!({ "message": "未授权的局域网同步请求" }),
+        );
     }
     match action() {
         Ok(value) => json_response(200, value),
@@ -251,7 +271,10 @@ where
     F: FnOnce() -> Result<Option<Vec<u8>>, String>,
 {
     if !is_authorized_request(request) {
-        return json_response(403, serde_json::json!({ "message": "未授权的局域网同步请求" }));
+        return json_response(
+            403,
+            serde_json::json!({ "message": "未授权的局域网同步请求" }),
+        );
     }
     match action() {
         Ok(Some(bytes)) => bytes_response(200, bytes),
@@ -283,7 +306,10 @@ fn query_i64(request: &HttpRequest, name: &str) -> Option<i64> {
         .and_then(|(_, value)| value.parse::<i64>().ok())
 }
 
-fn save_history_records(request: &HttpRequest, app: &AppHandle) -> Result<super::LanRecordBatch, String> {
+fn save_history_records(
+    request: &HttpRequest,
+    app: &AppHandle,
+) -> Result<super::LanRecordBatch, String> {
     let batch = serde_json::from_slice::<super::LanRecordBatch>(&request.body)
         .map_err(|e| format!("解析局域网历史数据失败: {}", e))?;
     let records = crate::services::database::filter_records_not_deleted(
@@ -302,7 +328,10 @@ fn save_history_records(request: &HttpRequest, app: &AppHandle) -> Result<super:
     })
 }
 
-fn save_favorite_records(request: &HttpRequest, app: &AppHandle) -> Result<super::LanRecordBatch, String> {
+fn save_favorite_records(
+    request: &HttpRequest,
+    app: &AppHandle,
+) -> Result<super::LanRecordBatch, String> {
     let batch = serde_json::from_slice::<super::LanRecordBatch>(&request.body)
         .map_err(|e| format!("解析局域网收藏数据失败: {}", e))?;
     let records = crate::services::database::filter_records_not_deleted(
@@ -335,7 +364,10 @@ fn save_groups(request: &HttpRequest, app: &AppHandle) -> Result<super::LanGroup
     Ok(super::LanGroupBatch { groups: changed })
 }
 
-fn save_tombstones(request: &HttpRequest, app: &AppHandle) -> Result<super::LanTombstoneBatch, String> {
+fn save_tombstones(
+    request: &HttpRequest,
+    app: &AppHandle,
+) -> Result<super::LanTombstoneBatch, String> {
     let batch = serde_json::from_slice::<super::LanTombstoneBatch>(&request.body)
         .map_err(|e| format!("解析局域网删除记录失败: {}", e))?;
     let changed = crate::services::database::upsert_sync_tombstones(&batch.tombstones)?;
@@ -344,10 +376,15 @@ fn save_tombstones(request: &HttpRequest, app: &AppHandle) -> Result<super::LanT
     if !changed.is_empty() || report.total() > 0 {
         crate::services::sync_transfer::lan_notify_local_change(app.clone(), "relay");
     }
-    Ok(super::LanTombstoneBatch { tombstones: changed })
+    Ok(super::LanTombstoneBatch {
+        tombstones: changed,
+    })
 }
 
-fn mark_tombstone_refresh(report: &crate::services::database::SyncTombstoneApplyReport, app: &AppHandle) {
+fn mark_tombstone_refresh(
+    report: &crate::services::database::SyncTombstoneApplyReport,
+    app: &AppHandle,
+) {
     if report.history > 0 {
         crate::windows::main_window::mark_clipboard_refresh_pending();
     }
@@ -374,12 +411,19 @@ fn save_file(path: &str, bytes: &[u8]) -> Result<serde_json::Value, String> {
     Ok(serde_json::json!({ "saved": true }))
 }
 
-async fn receive_transfer_file_stream(request: &HttpRequest, stream: &mut tokio::net::TcpStream, app: &AppHandle) -> HttpResponse {
+async fn receive_transfer_file_stream(
+    request: &HttpRequest,
+    stream: &mut tokio::net::TcpStream,
+    app: &AppHandle,
+) -> HttpResponse {
     if !super::auto_sync::can_receive() {
         return json_response(403, serde_json::json!({ "message": "局域网接收已关闭" }));
     }
     if !is_authorized_request(request) {
-        return json_response(403, serde_json::json!({ "message": "未授权的局域网同步请求" }));
+        return json_response(
+            403,
+            serde_json::json!({ "message": "未授权的局域网同步请求" }),
+        );
     }
 
     let file_name = match super::files::file_name_from_transfer_path(&request.path) {
@@ -405,16 +449,21 @@ async fn receive_transfer_file_stream(request: &HttpRequest, stream: &mut tokio:
         &source_device_id,
         &source_device_name,
         &reporter,
-    ).await {
+    )
+    .await
+    {
         Ok(saved) => {
             reporter.emit("done", saved.size);
             crate::windows::receive_box::emit_lan_files_changed(app);
-            json_response(200, serde_json::json!({
-                "saved": true,
-                "path": saved.path.to_string_lossy().to_string(),
-                "size": saved.size,
-                "sha256": saved.sha256,
-            }))
+            json_response(
+                200,
+                serde_json::json!({
+                    "saved": true,
+                    "path": saved.path.to_string_lossy().to_string(),
+                    "size": saved.size,
+                    "sha256": saved.sha256,
+                }),
+            )
         }
         Err(message) => {
             reporter.emit("failed", 0);
@@ -451,9 +500,19 @@ async fn save_transfer_file_stream(
             .checked_sub(written)
             .ok_or_else(|| "请求体长度异常".to_string())?;
         if remaining > 0 {
-            copy_exact_to_file(stream, &mut file, &mut hasher, remaining, written as u64, reporter).await?;
+            copy_exact_to_file(
+                stream,
+                &mut file,
+                &mut hasher,
+                remaining,
+                written as u64,
+                reporter,
+            )
+            .await?;
         }
-        file.flush().await.map_err(|e| format!("保存接收文件失败: {}", e))?;
+        file.flush()
+            .await
+            .map_err(|e| format!("保存接收文件失败: {}", e))?;
         drop(file);
         let saved_len = tokio::fs::metadata(&reservation.temp_path)
             .await
@@ -462,8 +521,7 @@ async fn save_transfer_file_stream(
         if saved_len != request.content_length as u64 {
             return Err(format!(
                 "局域网文件接收不完整: 期望 {} 字节，实际 {} 字节",
-                request.content_length,
-                saved_len,
+                request.content_length, saved_len,
             ));
         }
         let saved_path = tokio::task::spawn_blocking({
@@ -487,7 +545,8 @@ async fn save_transfer_file_stream(
             size: saved_len,
             sha256,
         })
-    }.await;
+    }
+    .await;
 
     match result {
         Ok(saved) => Ok(saved),
@@ -529,7 +588,8 @@ async fn copy_exact_to_file(
     let mut buffer = vec![0u8; FILE_TRANSFER_BUFFER_SIZE];
     while remaining > 0 {
         let read_len = remaining.min(buffer.len());
-        let read = stream.read(&mut buffer[..read_len])
+        let read = stream
+            .read(&mut buffer[..read_len])
             .await
             .map_err(|e| format!("读取局域网传输内容失败: {}", e))?;
         if read == 0 {
@@ -552,14 +612,18 @@ fn emit_refresh_if_visible(app: &AppHandle) {
     }
 }
 
-fn normalize_pairing_base_url(mut input: HttpPairingConfirmRequest, remote_addr: std::net::SocketAddr) -> HttpPairingConfirmRequest {
+fn normalize_pairing_base_url(
+    mut input: HttpPairingConfirmRequest,
+    remote_addr: std::net::SocketAddr,
+) -> HttpPairingConfirmRequest {
     let base_url = input.base_url.trim();
     if base_url.is_empty()
         || base_url.contains("127.0.0.1")
         || base_url.contains("localhost")
         || base_url.contains("[::1]")
     {
-        let port = pairing_base_url_port(base_url).unwrap_or_else(|| running_port().unwrap_or(super::DEFAULT_HTTP_PORT));
+        let port = pairing_base_url_port(base_url)
+            .unwrap_or_else(|| running_port().unwrap_or(super::DEFAULT_HTTP_PORT));
         input.base_url = format!("http://{}:{}", remote_addr.ip(), port);
     }
     input
@@ -672,7 +736,10 @@ async fn read_request_body(
     if request.content_length > request.body.len() {
         let remaining = request.content_length - request.body.len();
         let mut extra = vec![0u8; remaining];
-        stream.read_exact(&mut extra).await.map_err(|e| e.to_string())?;
+        stream
+            .read_exact(&mut extra)
+            .await
+            .map_err(|e| e.to_string())?;
         request.body.extend_from_slice(&extra);
     }
     if request.body.len() > request.content_length {
@@ -699,7 +766,10 @@ fn bytes_response(status_code: u16, body: Vec<u8>) -> HttpResponse {
     }
 }
 
-async fn write_response(stream: &mut tokio::net::TcpStream, response: HttpResponse) -> Result<(), String> {
+async fn write_response(
+    stream: &mut tokio::net::TcpStream,
+    response: HttpResponse,
+) -> Result<(), String> {
     let status_text = match response.status_code {
         200 => "OK",
         400 => "Bad Request",
@@ -715,7 +785,13 @@ async fn write_response(stream: &mut tokio::net::TcpStream, response: HttpRespon
         response.content_type,
         response.body.len()
     );
-    stream.write_all(header.as_bytes()).await.map_err(|e| e.to_string())?;
-    stream.write_all(&response.body).await.map_err(|e| e.to_string())?;
+    stream
+        .write_all(header.as_bytes())
+        .await
+        .map_err(|e| e.to_string())?;
+    stream
+        .write_all(&response.body)
+        .await
+        .map_err(|e| e.to_string())?;
     stream.flush().await.map_err(|e| e.to_string())
 }
