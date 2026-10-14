@@ -1,15 +1,21 @@
-<h1 align="center">‼️‼️‼️‼️‼️项目停止更新‼️‼️‼️‼️‼️</h1>
+<h1 align="center">QuickClipboard 已停止维护，新版 QcClip 已发布</h1>
 
-  <p><b>📢 停止维护通知</b></p>
+<p align="center">
+  <b>QuickClipboard 已完成重写，并以 QcClip 的名称在新仓库发布，欢迎下载使用。</b>
+</p>
 
-  <p>
-    本项目基于 Tauri，依赖 WebView 运行，性能和内存占用都不太理想；加上多次迭代后遗留问题越来越多，维护成本过高。因此，本项目后续<b>不再进行任何功能更新与维护</b>。
-  </p>
+<p align="center">
+  <a href="https://github.com/mosheng1/QcClip">新版仓库</a> ·
+  <a href="https://github.com/mosheng1/QcClip/releases">下载 QcClip</a> ·
+  <a href="https://github.com/mosheng1/QcClip/blob/main/docs/legacy-migration.md">旧版数据迁移说明</a>
+</p>
 
-  <p>
-    不过项目并未就此终结——目前已在开发一个全新的独立原生剪贴板程序，采用<b>纯 Rust 框架</b>构建，<b>彻底摆脱 WebView 依赖</b>。待开发完成后会创建新的仓库发布，敬请耐心等待 ~
-  </p>
-   <blockquote><p>新版项目进度可<a href="#group">加入群聊</a>进行了解</p></blockquote>
+**QcClip** 是 QuickClipboard 的全新重写版本，采用纯 Rust 和 GPUI 原生渲染，不再依赖 WebView，着重改善响应速度、浏览流畅度和常驻资源占用。新版功能介绍、使用说明和后续更新请前往 [QcClip 仓库](https://github.com/mosheng1/QcClip)，问题反馈请提交至 [QcClip Issues](https://github.com/mosheng1/QcClip/issues)。
+
+旧版用户可在 QcClip 的“设置 → 数据管理 → 从旧版 QuickClipboard 迁移”中导入旧版数据，支持范围和操作步骤请参阅上方迁移说明。
+
+**本仓库中的 QuickClipboard 已停止功能更新与维护。以下内容仅为旧版介绍、截图、下载与构建资料。**
+
 <hr>
 <blockquote>
 <div align="center">
@@ -35,11 +41,11 @@
 
 ---
 
-## 简介
+## 旧版简介
 
-**QuickClipboard** 是一款跨平台剪贴板增强工具（现支持Windows，Android），基于 Tauri 2 + Rust + React 构建。它在你复制的那一刻就开始工作——自动记录文本、图片、富文本、文件，让你随时找回曾经复制过的任何内容。不只是记录，QuickClipboard 还集成了贴图、OCR、WebDAV 同步与局域网同步/传输等能力，是日常办公效率的全面提升。
+**QuickClipboard（旧版）** 是一款跨平台剪贴板增强工具（支持 Windows、Android），基于 Tauri 2 + Rust + React 构建。它在你复制的那一刻就开始工作——自动记录文本、图片、富文本、文件，让你随时找回曾经复制过的任何内容。不只是记录，QuickClipboard 还集成了贴图、OCR、WebDAV 同步与局域网同步/传输等能力，是日常办公效率的全面提升。
 
-> 原生性能，内存占用低，启动即用，常驻系统托盘。
+> 以下功能与截图均对应旧版 QuickClipboard，新版功能请以 [QcClip 仓库](https://github.com/mosheng1/QcClip)的说明为准。
 
 ---
 
@@ -154,7 +160,9 @@
 
 ---
 
-## 下载方式（v0.5.0）
+## 旧版下载（v0.5.0）
+
+推荐使用已发布的新版 [QcClip](https://github.com/mosheng1/QcClip/releases)。以下链接仅用于下载停止维护的旧版 QuickClipboard。
 
 | 类型                                                      |                       说明 |                                                        下载量                                                        | 链接                                                                                                                                                                                            |
 | --------------------------------------------------------- | -------------------------: | :------------------------------------------------------------------------------------------------------------------: | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
