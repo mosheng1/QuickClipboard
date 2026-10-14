@@ -99,12 +99,7 @@ export const favoritesStore = proxy({
   hasItem(index) {
     return index in this.items
   },
-  
-  // 添加新项到开头（新收藏内容）
-  addItem(item) {
-    this.items = {}
-  },
-  
+
   // 删除项
   removeItem(id) {
     this.removeItems([id])
@@ -200,57 +195,6 @@ export const favoritesStore = proxy({
     return true
   },
 
-  insertLoadedItemAt(item, insertIndex, totalCount) {
-    if (!item || !Number.isInteger(insertIndex) || insertIndex < 0 || insertIndex >= totalCount) {
-      return false
-    }
-
-    const nextItems = {}
-    const entries = Object.entries(this.items)
-      .map(([key, value]) => [parseInt(key, 10), value])
-      .filter(([, value]) => value)
-      .sort((a, b) => b[0] - a[0])
-
-    for (const [index, value] of entries) {
-      const nextIndex = index >= insertIndex ? index + 1 : index
-      if (nextIndex < totalCount) {
-        nextItems[nextIndex] = value
-      }
-    }
-
-    nextItems[insertIndex] = item
-    this.items = nextItems
-    this.totalCount = totalCount
-
-    if (this.selectionAnchorIndex != null && this.selectionAnchorIndex >= insertIndex) {
-      this.selectionAnchorIndex += 1
-    }
-
-    if (this.selectedEntries.length > 0) {
-      this.selectedEntries = this.selectedEntries
-        .map(entry => (
-          entry.index >= insertIndex
-            ? { ...entry, index: entry.index + 1 }
-            : entry
-        ))
-    }
-
-    const { start, end } = this.currentViewRange
-    if (insertIndex <= start) {
-      this.currentViewRange = {
-        start: start + 1,
-        end: end + 1,
-      }
-    } else if (insertIndex <= end) {
-      this.currentViewRange = {
-        start,
-        end: end + 1,
-      }
-    }
-
-    return true
-  },
-  
   setFilter(value) {
     if (this.filter !== value) {
       nextFavoritesRequestVersion()

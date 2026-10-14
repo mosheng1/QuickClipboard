@@ -25,12 +25,11 @@ export async function getFavoritesTotalCount(groupName = null) {
 // 添加收藏
 export async function addFavorite(title, content, groupName = '全部') {
   const result = await invoke('add_quick_text', { title, content, groupName })
-  const item = await invoke('get_favorite_item_by_id_cmd', { id: result.id })
+  // 广播一次数据更新通知即可，收藏列表由事件监听侧重新从数据库读取，
+  // 这里不回读新建收藏，也不直接写收藏分页缓存
   await invoke('emit_quick_texts_updated', {
     payload: {
-      kind: 'created',
-      item,
-      insert_index: 0,
+      kind: 'updated',
     },
   })
   return result
