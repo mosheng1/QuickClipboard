@@ -3,9 +3,43 @@ use super::input_common;
 #[cfg(target_os = "windows")]
 pub(crate) const PASTE_INPUT_MARKER: usize = 0x5143_4C50;
 
+const RI_KEY_BREAK: u16 = 0x01;
+const RI_KEY_E0: u16 = 0x02;
+
+// 返回 Some(true) 表示按下，Some(false) 表示抬起，None 表示无法判断
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn raw_key_transition(message: u32, flags: u16) -> Option<bool> {
+    match message {
+        0x0100 | 0x0104 => Some(true),
+        0x0101 | 0x0105 => Some(false),
+        _ if flags & RI_KEY_BREAK != 0 => Some(false),
+        _ => None,
+    }
+}
+
+// 根据扫描码与 E0 前缀还原未知或通用修饰键的左右侧
+#[cfg_attr(not(target_os = "windows"), allow(dead_code))]
+fn normalize_raw_vkey(vkey: u32, make_code: u16, flags: u16) -> u32 {
+    if !matches!(vkey, 0xFF | 0x10 | 0x11 | 0x12) {
+        return vkey;
+    }
+    let e0 = flags & RI_KEY_E0 != 0;
+    match (make_code, e0) {
+        (0x5B, true) => 0x5B,
+        (0x5C, true) => 0x5C,
+        (0x1D, true) => 0xA3,
+        (0x38, true) => 0xA5,
+        (0x1D, false) => 0xA2,
+        (0x38, false) => 0xA4,
+        (0x2A, false) => 0xA0,
+        (0x36, false) => 0xA1,
+        _ => vkey,
+    }
+}
+
 #[cfg(target_os = "windows")]
 mod windows_raw_input {
-    use super::{input_common, PASTE_INPUT_MARKER};
+    use super::{input_common, normalize_raw_vkey, raw_key_transition, PASTE_INPUT_MARKER};
     use once_cell::sync::Lazy;
     use parking_lot::Mutex;
     use std::mem::size_of;
@@ -25,16 +59,19 @@ mod windows_raw_input {
     use windows::Win32::UI::WindowsAndMessaging::{
         CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, PeekMessageW, RegisterClassExW,
         TranslateMessage, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, MSG, PM_NOREMOVE, WM_DESTROY, WM_INPUT,
-        WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP, WNDCLASSEXW, WS_OVERLAPPEDWINDOW,
+        WNDCLASSEXW, WS_OVERLAPPEDWINDOW,
     };
 
     use crate::services::sound::AppSounds;
 
     static RAW_INPUT_ACTIVE: AtomicBool = AtomicBool::new(false);
     static RAW_INPUT_THREAD_ID: AtomicU32 = AtomicU32::new(0);
-    static CTRL_DOWN: AtomicBool = AtomicBool::new(false);
-    static SHIFT_DOWN: AtomicBool = AtomicBool::new(false);
-    static ALT_DOWN: AtomicBool = AtomicBool::new(false);
+    static LCTRL_DOWN: AtomicBool = AtomicBool::new(false);
+    static RCTRL_DOWN: AtomicBool = AtomicBool::new(false);
+    static LSHIFT_DOWN: AtomicBool = AtomicBool::new(false);
+    static RSHIFT_DOWN: AtomicBool = AtomicBool::new(false);
+    static LALT_DOWN: AtomicBool = AtomicBool::new(false);
+    static RALT_DOWN: AtomicBool = AtomicBool::new(false);
     static LWIN_DOWN: AtomicBool = AtomicBool::new(false);
     static RWIN_DOWN: AtomicBool = AtomicBool::new(false);
     static MIDDLE_BUTTON_DOWN: AtomicBool = AtomicBool::new(false);
@@ -64,15 +101,20 @@ mod windows_raw_input {
     const QUICKPASTE_REPEAT_INITIAL_DELAY_MS: u64 = 300;
     const QUICKPASTE_REPEAT_INTERVAL_MS: u64 = 120;
 
-    pub(crate) fn get_physical_modifier_keys_state() -> Option<(bool, bool, bool, bool, bool)> {
+    pub(crate) fn get_physical_modifier_keys_state() -> Option<([bool; 6], bool, bool)> {
         if !RAW_INPUT_ACTIVE.load(Ordering::SeqCst) {
             return None;
         }
 
         Some((
-            CTRL_DOWN.load(Ordering::Relaxed),
-            SHIFT_DOWN.load(Ordering::Relaxed),
-            ALT_DOWN.load(Ordering::Relaxed),
+            [
+                LCTRL_DOWN.load(Ordering::Relaxed),
+                RCTRL_DOWN.load(Ordering::Relaxed),
+                LSHIFT_DOWN.load(Ordering::Relaxed),
+                RSHIFT_DOWN.load(Ordering::Relaxed),
+                LALT_DOWN.load(Ordering::Relaxed),
+                RALT_DOWN.load(Ordering::Relaxed),
+            ],
             LWIN_DOWN.load(Ordering::Relaxed),
             RWIN_DOWN.load(Ordering::Relaxed),
         ))
@@ -283,11 +325,11 @@ mod windows_raw_input {
             // 键盘
             1 => {
                 let kb = raw.data.keyboard;
-                let vkey = kb.VKey as u32;
-                let message = kb.Message;
+                let vkey = normalize_raw_vkey(kb.VKey as u32, kb.MakeCode, kb.Flags);
+                let transition = raw_key_transition(kb.Message, kb.Flags);
 
-                let is_keydown = message == WM_KEYDOWN || message == WM_SYSKEYDOWN;
-                let is_keyup = message == WM_KEYUP || message == WM_SYSKEYUP;
+                let is_keydown = transition == Some(true);
+                let is_keyup = transition == Some(false);
 
                 if kb.ExtraInformation as usize == PASTE_INPUT_MARKER {
                     if is_keydown && (vkey == b'V' as u32 || vkey == VK_INSERT_CODE) {
@@ -299,28 +341,37 @@ mod windows_raw_input {
                 handle_quickpaste_keyboard_event(vkey, is_keydown, is_keyup);
 
                 if vkey == VK_CONTROL_CODE || vkey == VK_LCONTROL_CODE || vkey == VK_RCONTROL_CODE {
-                    if is_keydown {
-                        CTRL_DOWN.store(true, Ordering::Relaxed);
-                    } else if is_keyup {
-                        CTRL_DOWN.store(false, Ordering::Relaxed);
+                    let state = match vkey {
+                        VK_LCONTROL_CODE => &LCTRL_DOWN,
+                        VK_RCONTROL_CODE => &RCTRL_DOWN,
+                        _ => return,
+                    };
+                    if let Some(down) = transition {
+                        state.store(down, Ordering::Relaxed);
                     }
                     return;
                 }
 
                 if vkey == VK_SHIFT_CODE || vkey == VK_LSHIFT_CODE || vkey == VK_RSHIFT_CODE {
-                    if is_keydown {
-                        SHIFT_DOWN.store(true, Ordering::Relaxed);
-                    } else if is_keyup {
-                        SHIFT_DOWN.store(false, Ordering::Relaxed);
+                    let state = match vkey {
+                        VK_LSHIFT_CODE => &LSHIFT_DOWN,
+                        VK_RSHIFT_CODE => &RSHIFT_DOWN,
+                        _ => return,
+                    };
+                    if let Some(down) = transition {
+                        state.store(down, Ordering::Relaxed);
                     }
                     return;
                 }
 
                 if vkey == VK_MENU_CODE || vkey == VK_LMENU_CODE || vkey == VK_RMENU_CODE {
-                    if is_keydown {
-                        ALT_DOWN.store(true, Ordering::Relaxed);
-                    } else if is_keyup {
-                        ALT_DOWN.store(false, Ordering::Relaxed);
+                    let state = match vkey {
+                        VK_LMENU_CODE => &LALT_DOWN,
+                        VK_RMENU_CODE => &RALT_DOWN,
+                        _ => return,
+                    };
+                    if let Some(down) = transition {
+                        state.store(down, Ordering::Relaxed);
                     }
                     return;
                 }
@@ -336,9 +387,9 @@ mod windows_raw_input {
                 }
 
                 if is_keydown {
-                    let is_ctrl_v = CTRL_DOWN.load(Ordering::Relaxed)
+                    let is_ctrl_v = (LCTRL_DOWN.load(Ordering::Relaxed) || RCTRL_DOWN.load(Ordering::Relaxed))
                         && (vkey == b'V' as u32 || vkey == b'v' as u32);
-                    let is_shift_insert = SHIFT_DOWN.load(Ordering::Relaxed) && vkey == VK_INSERT_CODE;
+                    let is_shift_insert = (LSHIFT_DOWN.load(Ordering::Relaxed) || RSHIFT_DOWN.load(Ordering::Relaxed)) && vkey == VK_INSERT_CODE;
 
                     if is_ctrl_v || is_shift_insert {
                         AppSounds::play_paste_immediate();
@@ -911,3 +962,42 @@ pub(crate) fn start_quickpaste_secondary_key_hold() {}
 
 #[cfg(not(target_os = "windows"))]
 pub(crate) fn guard_tray_click_region(_x: i32, _y: i32, _width: u32, _height: u32) {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stuck_modifier_normalizes_generic_modifier_sides() {
+        for (generic, scan, flags, side) in [
+            (0x11, 0x1D, 0, 0xA2),
+            (0x11, 0x1D, RI_KEY_E0, 0xA3),
+            (0x10, 0x2A, 0, 0xA0),
+            (0x10, 0x36, 0, 0xA1),
+            (0x12, 0x38, 0, 0xA4),
+            (0x12, 0x38, RI_KEY_E0, 0xA5),
+        ] {
+            assert_eq!(normalize_raw_vkey(generic, scan, flags), side);
+            assert_eq!(normalize_raw_vkey(generic, scan, flags | RI_KEY_BREAK), side);
+        }
+    }
+
+    #[test]
+    fn stuck_modifier_raw_break_flag_is_keyup_without_wm_keyup() {
+        assert_eq!(raw_key_transition(0, RI_KEY_BREAK), Some(false));
+        assert_eq!(raw_key_transition(0, 0), None);
+        assert_eq!(raw_key_transition(0x0101, 0), Some(false));
+        assert_eq!(raw_key_transition(0x0105, 0), Some(false));
+        assert_eq!(raw_key_transition(0x0100, 0), Some(true));
+        assert_eq!(raw_key_transition(0x0104, 0), Some(true));
+    }
+
+    #[test]
+    fn stuck_modifier_normalizes_unknown_vkey_from_make_code() {
+        assert_eq!(normalize_raw_vkey(0xFF, 0x5B, RI_KEY_E0 | RI_KEY_BREAK), 0x5B);
+        assert_eq!(normalize_raw_vkey(0xFF, 0x5C, RI_KEY_E0), 0x5C);
+        assert_eq!(normalize_raw_vkey(0xFF, 0x5B, 0), 0xFF);
+        assert_eq!(normalize_raw_vkey(0xFF, 0x1D, RI_KEY_E0 | RI_KEY_BREAK), 0xA3);
+        assert_eq!(normalize_raw_vkey(0xFF, 0x38, RI_KEY_E0), 0xA5);
+    }
+}
