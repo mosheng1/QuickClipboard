@@ -1,14 +1,14 @@
 use file_icon_provider::get_file_icon;
-use image::{RgbaImage, ImageFormat};
+use image::{ImageFormat, RgbaImage};
+use sha2::{Digest, Sha256};
 use std::io::Cursor;
-use sha2::{Sha256, Digest};
 
 // 获取文件图标并转换为 Base64 Data URL
 pub fn get_file_icon_base64(path: &str) -> Option<String> {
     match get_file_icon(path, 32) {
         Ok(icon) => {
             if let Ok(png_data) = icon_to_png(&icon) {
-                use base64::{Engine as _, engine::general_purpose};
+                use base64::{engine::general_purpose, Engine as _};
                 let base64_str = general_purpose::STANDARD.encode(&png_data);
                 return Some(format!("data:image/png;base64,{}", base64_str));
             }
@@ -20,14 +20,14 @@ pub fn get_file_icon_base64(path: &str) -> Option<String> {
 
 // 将 Icon 转换为 PNG 格式
 pub fn icon_to_png(icon: &file_icon_provider::Icon) -> Result<Vec<u8>, String> {
-    let img = RgbaImage::from_raw(icon.width, icon.height, icon.pixels.clone())
-        .ok_or("创建图像失败")?;
-    
+    let img =
+        RgbaImage::from_raw(icon.width, icon.height, icon.pixels.clone()).ok_or("创建图像失败")?;
+
     let mut png_data = Vec::new();
     let mut cursor = Cursor::new(&mut png_data);
     img.write_to(&mut cursor, ImageFormat::Png)
         .map_err(|e| format!("PNG编码失败: {}", e))?;
-    
+
     Ok(png_data)
 }
 
@@ -45,7 +45,7 @@ pub fn save_app_icon(exe_path: &str) -> Option<String> {
         Ok(icon) => icon,
         Err(_) => return None,
     };
-    
+
     let png_data = match icon_to_png(&icon) {
         Ok(data) => data,
         Err(_) => return None,
@@ -71,6 +71,6 @@ pub fn save_app_icon(exe_path: &str) -> Option<String> {
             return None;
         }
     }
-    
+
     Some(hash)
 }

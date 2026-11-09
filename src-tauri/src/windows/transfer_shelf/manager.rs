@@ -1,6 +1,6 @@
 use std::collections::HashSet;
-use std::sync::mpsc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc;
 use std::time::Duration;
 
 use once_cell::sync::Lazy;
@@ -117,7 +117,10 @@ pub fn schedule_startup_restore_persisted_shelves(app: AppHandle) {
                 index,
                 geometry,
             ) {
-                eprintln!("[transfer_shelf] 恢复文件盒窗口失败 {}: {}", persisted.id, err);
+                eprintln!(
+                    "[transfer_shelf] 恢复文件盒窗口失败 {}: {}",
+                    persisted.id, err
+                );
             }
             tokio::time::sleep(Duration::from_millis(STARTUP_RESTORE_INTERVAL_MS)).await;
         }
@@ -133,12 +136,8 @@ fn restore_persisted_shelf_on_main_thread(
     let (sender, receiver) = mpsc::channel();
     let app_for_restore = app.clone();
     app.run_on_main_thread(move || {
-        let result = restore_persisted_shelf(
-            &app_for_restore,
-            &persisted,
-            index,
-            geometry.as_ref(),
-        );
+        let result =
+            restore_persisted_shelf(&app_for_restore, &persisted, index, geometry.as_ref());
         let _ = sender.send(result);
     })
     .map_err(|e| format!("调度文件盒恢复到主线程失败: {}", e))?;
@@ -229,9 +228,12 @@ pub fn append_files_to_recent_or_new_shelf(
     }
     storage::upsert_shelf(persisted)?;
 
-    let _ = app.emit(STATE_CHANGED_EVENT, serde_json::json!({
-        "shelfId": summary.id,
-    }));
+    let _ = app.emit(
+        STATE_CHANGED_EVENT,
+        serde_json::json!({
+            "shelfId": summary.id,
+        }),
+    );
     let _ = focus_shelf(app, &summary.id);
     Ok(summary)
 }
@@ -279,9 +281,12 @@ pub fn append_files_to_shelf(
     }
     storage::upsert_shelf(persisted)?;
 
-    let _ = app.emit(STATE_CHANGED_EVENT, serde_json::json!({
-        "shelfId": summary.id,
-    }));
+    let _ = app.emit(
+        STATE_CHANGED_EVENT,
+        serde_json::json!({
+            "shelfId": summary.id,
+        }),
+    );
     let _ = focus_shelf(app, &summary.id);
     Ok(summary)
 }

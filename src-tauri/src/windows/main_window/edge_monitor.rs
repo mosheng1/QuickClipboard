@@ -2,7 +2,7 @@ use parking_lot::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
-use tauri::{WebviewWindow, Manager};
+use tauri::{Manager, WebviewWindow};
 
 static MAIN_WINDOW: Mutex<Option<WebviewWindow>> = Mutex::new(None);
 static MONITORING_ACTIVE: AtomicBool = AtomicBool::new(false);
@@ -28,27 +28,26 @@ pub fn init_edge_monitor(window: WebviewWindow) {
 
 pub fn start_edge_monitoring() {
     let was_active = MONITORING_ACTIVE.swap(true, Ordering::Relaxed);
-    
+
     if was_active {
         return;
     }
-    
+
     std::thread::spawn(|| {
         // 初始缓冲期，避免贴边后立即触发隐藏
         std::thread::sleep(Duration::from_millis(200));
-        
+
         let mut last_near_state = false;
         let mut last_hidden_state = false;
         let mut not_near_since_ms = None;
         let mouse_state_version = Arc::new(AtomicU64::new(0));
         let show_triggered_by_mouse = Arc::new(AtomicBool::new(false));
-        
         loop {
             if !MONITORING_ACTIVE.load(Ordering::Relaxed) {
                 std::thread::sleep(Duration::from_millis(100));
                 continue;
             }
-            
+
             let window = match MAIN_WINDOW.lock().clone() {
                 Some(w) => w,
                 None => {
@@ -69,7 +68,7 @@ pub fn start_edge_monitoring() {
                 std::thread::sleep(Duration::from_millis(100));
                 continue;
             }
- 
+
             if last_hidden_state != state.is_hidden {
                 let was_hidden = last_hidden_state;
                 last_hidden_state = state.is_hidden;
@@ -153,7 +152,7 @@ pub fn start_edge_monitoring() {
                     }
                 });
             }
-            
+
             last_near_state = is_near;
             std::thread::sleep(Duration::from_millis(50));
         }
@@ -194,17 +193,18 @@ fn check_mouse_near_edge(
     let (cursor_x, cursor_y) = crate::mouse::get_cursor_position();
     let (win_x, win_y, win_width, win_height) = crate::get_window_bounds(window)?;
     let settings = crate::get_settings();
-    let ratio = state
-        .snap_ratio
-        .or(settings.edge_snap_ratio)
-        .unwrap_or(super::snap::compute_snap_ratio(
-            window.app_handle(),
-            state.snap_edge,
-            win_x,
-            win_y,
-            win_width as i32,
-            win_height as i32,
-        )?);
+    let ratio =
+        state
+            .snap_ratio
+            .or(settings.edge_snap_ratio)
+            .unwrap_or(super::snap::compute_snap_ratio(
+                window.app_handle(),
+                state.snap_edge,
+                win_x,
+                win_y,
+                win_width as i32,
+                win_height as i32,
+            )?);
     let resolved = super::snap::resolve_snapped_position(
         window.app_handle(),
         state.snap_edge,
@@ -222,17 +222,16 @@ fn check_mouse_near_edge(
     } else {
         10
     };
-    
+
     // 检查鼠标是否在窗口内
     let mouse_in_window = cursor_x >= win_x - MOUSE_LEAVE_TOLERANCE
         && cursor_x <= win_x + win_width as i32 + MOUSE_LEAVE_TOLERANCE
         && cursor_y >= win_y - MOUSE_LEAVE_TOLERANCE
         && cursor_y <= win_y + win_height as i32 + MOUSE_LEAVE_TOLERANCE;
-    
     // 检查鼠标是否接近对应边缘（使用当前显示器边界）
     let content_inset = (CONTENT_INSET_LOGICAL * resolved.scale_factor) as i32;
     let trigger_distance = base_trigger + content_inset;
-    
+
     let is_near = match resolved.edge {
         super::state::SnapEdge::Left => {
             cursor_x <= resolved.x + trigger_distance
@@ -256,7 +255,6 @@ fn check_mouse_near_edge(
         }
         super::state::SnapEdge::None => false,
     };
-    
+
     Ok(is_near || mouse_in_window)
 }
-

@@ -307,9 +307,10 @@ fn process_clipboard_change_once() {
                     match crate::services::database::get_clipboard_item_by_id(id) {
                         Ok(Some(mut item)) => {
                             crate::commands::clipboard::hydrate_clipboard_item_for_ui(&mut item);
-                            let insert_index = crate::services::database::get_clipboard_item_position(id)
-                                .ok()
-                                .flatten();
+                            let insert_index =
+                                crate::services::database::get_clipboard_item_position(id)
+                                    .ok()
+                                    .flatten();
                             let total_count = crate::services::database::get_clipboard_count().ok();
                             let _ = emit_clipboard_updated(ClipboardUpdatedEventPayload {
                                 kind: "created".to_string(),
@@ -327,7 +328,6 @@ fn process_clipboard_change_once() {
                             });
                         }
                     }
-
                 }
                 Err(e) if e.contains("重复内容") || e.contains("已禁止保存图片") => {}
                 Err(e) => eprintln!("存储剪贴板内容失败: {}", e),

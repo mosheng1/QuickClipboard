@@ -1,6 +1,6 @@
 use once_cell::sync::Lazy;
-use serde::Serialize;
 use serde::Deserialize;
+use serde::Serialize;
 use std::sync::atomic::AtomicBool;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
@@ -145,10 +145,7 @@ fn schedule_preview_hide_watchdog(app: AppHandle, watchdog_version: u64) {
                 destroy_preview_window_internal(&app);
             }
 
-            tokio::time::sleep(Duration::from_millis(
-                PREVIEW_HIDE_WATCHDOG_INTERVAL_MS,
-            ))
-            .await;
+            tokio::time::sleep(Duration::from_millis(PREVIEW_HIDE_WATCHDOG_INTERVAL_MS)).await;
         }
     });
 }
@@ -189,10 +186,12 @@ fn create_preview_window(
     .skip_taskbar(true)
     .focused(false)
     .focusable(false)
-    .visible(false)
-    .drag_and_drop(false)
-    .build()
-    .map_err(|e| format!("创建预览窗口失败: {}", e))?;
+    .visible(false);
+    #[cfg(windows)]
+    let window = window.drag_and_drop(false);
+    let window = window
+        .build()
+        .map_err(|e| format!("创建预览窗口失败: {}", e))?;
 
     apply_preview_window_bounds(
         &window,
@@ -246,10 +245,10 @@ pub async fn show_preview_window(
     let work_area_y = work_area.position.y;
     let work_area_width = work_area.size.width;
     let work_area_height = work_area.size.height;
-    let (main_window_x, main_window_y, main_window_width, main_window_height) =
-        app.get_webview_window("main")
-            .and_then(|window| crate::get_window_bounds(&window).ok())
-            .unwrap_or((0, 0, 0, 0));
+    let (main_window_x, main_window_y, main_window_width, main_window_height) = app
+        .get_webview_window("main")
+        .and_then(|window| crate::get_window_bounds(&window).ok())
+        .unwrap_or((0, 0, 0, 0));
 
     let preview_data = PreviewWindowData {
         mode,

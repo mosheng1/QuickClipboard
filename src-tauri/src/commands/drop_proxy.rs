@@ -2,8 +2,8 @@ use serde::Deserialize;
 use tauri::{AppHandle, WebviewWindow};
 
 use crate::windows::drop_proxy::{
-    self, DropProxyBounds, DropProxyCleanupPayload, DropProxyCursorPosition, DropProxyResourcePayload,
-    DropProxyRouteResult,
+    self, DropProxyBounds, DropProxyCleanupPayload, DropProxyCursorPosition,
+    DropProxyResourcePayload, DropProxyRouteResult,
 };
 
 const DEFAULT_CLEANUP_MIN_AGE_MS: u64 = 5000;
@@ -46,7 +46,9 @@ pub struct DropProxySaveResourceRequest {
 }
 
 #[tauri::command]
-pub async fn drop_proxy_save_resource(payload: DropProxySaveResourceRequest) -> Result<DropProxyResourcePayload, String> {
+pub async fn drop_proxy_save_resource(
+    payload: DropProxySaveResourceRequest,
+) -> Result<DropProxyResourcePayload, String> {
     drop_proxy::save_drop_resource(payload.filename, payload.data).await
 }
 
@@ -58,11 +60,15 @@ pub struct DropProxySaveUrlRequest {
 }
 
 #[tauri::command]
-pub async fn drop_proxy_save_url(payload: DropProxySaveUrlRequest) -> Result<DropProxyResourcePayload, String> {
+pub async fn drop_proxy_save_url(
+    payload: DropProxySaveUrlRequest,
+) -> Result<DropProxyResourcePayload, String> {
     drop_proxy::save_drop_url(payload.filename, payload.url).await
 }
 
 #[tauri::command]
-pub async fn drop_proxy_cleanup_orphan_resources(min_age_ms: Option<u64>) -> Result<DropProxyCleanupPayload, String> {
+pub async fn drop_proxy_cleanup_orphan_resources(
+    min_age_ms: Option<u64>,
+) -> Result<DropProxyCleanupPayload, String> {
     drop_proxy::cleanup_orphan_resources(min_age_ms.unwrap_or(DEFAULT_CLEANUP_MIN_AGE_MS)).await
 }

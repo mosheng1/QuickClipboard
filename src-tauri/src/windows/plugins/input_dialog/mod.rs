@@ -20,7 +20,8 @@ pub fn init() {
 
 // 获取输入结果
 pub(crate) fn get_result() -> Option<String> {
-    INPUT_RESULT.get()
+    INPUT_RESULT
+        .get()
         .and_then(|r| r.lock().ok())
         .and_then(|r| r.clone())
 }
@@ -50,7 +51,8 @@ pub(crate) fn set_options(options: window::InputDialogOptions) {
 
 // 获取对话框配置
 pub(crate) fn get_options() -> Option<window::InputDialogOptions> {
-    INPUT_OPTIONS.get()
+    INPUT_OPTIONS
+        .get()
         .and_then(|o| o.lock().ok())
         .and_then(|o| o.clone())
 }
@@ -63,4 +65,3 @@ pub(crate) fn clear_options() {
         }
     }
 }
-

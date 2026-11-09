@@ -24,8 +24,7 @@ pub async fn download_all(
     report.pulled_groups += remote_tombstone_report.pulled_groups;
     report.pulled += remote_tombstone_report.pulled;
     let tombstone_states = if force_download {
-        super::tombstones_sync::remote_tombstone_states(client)
-            .await?
+        super::tombstones_sync::remote_tombstone_states(client).await?
     } else {
         crate::services::database::sync_tombstone_states()?
     };
@@ -146,7 +145,10 @@ async fn download_collection(
     let mut selected_entries = HashMap::<String, SyncIndexEntry>::new();
     for (uuid, entry) in index.entries {
         if tombstone_states
-            .get(&crate::services::database::tombstone_state_key(collection_name, &uuid))
+            .get(&crate::services::database::tombstone_state_key(
+                collection_name,
+                &uuid,
+            ))
             .map(|deleted_at| *deleted_at >= entry.updated_at)
             .unwrap_or(false)
         {
@@ -190,7 +192,10 @@ async fn download_collection(
                 continue;
             }
             if tombstone_states
-                .get(&crate::services::database::tombstone_state_key(collection_name, &record.uuid))
+                .get(&crate::services::database::tombstone_state_key(
+                    collection_name,
+                    &record.uuid,
+                ))
                 .map(|deleted_at| *deleted_at >= record.updated_at)
                 .unwrap_or(false)
             {
@@ -257,7 +262,9 @@ fn favorite_image_ids_from_metas() -> Result<HashSet<String>, String> {
 }
 
 fn collect_image_ids(out: &mut HashSet<String>, raw: Option<&str>) {
-    let Some(raw) = raw else { return; };
+    let Some(raw) = raw else {
+        return;
+    };
     for item in raw.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
         out.insert(item.to_string());
     }

@@ -1,13 +1,12 @@
 use crate::services::database::{
     clear_clipboard_history as db_clear_clipboard_history,
-    delete_clipboard_item as db_delete_clipboard_item, delete_clipboard_items as db_delete_clipboard_items,
-    get_clipboard_count,
-    get_clipboard_data_items, get_clipboard_item_by_id, limit_clipboard_history, move_clipboard_item_to_top,
-    move_clipboard_item_by_id as db_move_clipboard_item_by_id,
-    query_clipboard_items, update_clipboard_item as db_update_clipboard_item,
-    increment_paste_counts as db_increment_paste_counts,
-    toggle_pin_clipboard_item as db_toggle_pin,
-    ClipboardItem, PaginatedResult, QueryParams,
+    delete_clipboard_item as db_delete_clipboard_item,
+    delete_clipboard_items as db_delete_clipboard_items, get_clipboard_count,
+    get_clipboard_data_items, get_clipboard_item_by_id,
+    increment_paste_counts as db_increment_paste_counts, limit_clipboard_history,
+    move_clipboard_item_by_id as db_move_clipboard_item_by_id, move_clipboard_item_to_top,
+    query_clipboard_items, toggle_pin_clipboard_item as db_toggle_pin,
+    update_clipboard_item as db_update_clipboard_item, ClipboardItem, PaginatedResult, QueryParams,
 };
 use crate::services::paste::FilesData;
 use std::path::Path;
@@ -22,8 +21,10 @@ fn fill_file_exists(items: &mut [ClipboardItem]) {
 }
 
 fn check_and_fill_file_exists(item: &mut ClipboardItem) {
-    if !item.content.starts_with("files:") { return; }
-    
+    if !item.content.starts_with("files:") {
+        return;
+    }
+
     if let Ok(mut data) = serde_json::from_str::<FilesData>(&item.content[6..]) {
         for file in &mut data.files {
             let actual_path = resolve_stored_path(&file.path);
@@ -165,9 +166,9 @@ pub async fn paste_content(params: PasteParams, app: tauri::AppHandle) -> Result
     use crate::services::paste::PasteAction;
 
     let paste_action = match params.action.as_deref() {
-        Some(action) if !action.trim().is_empty() => {
-            Some(PasteAction::from_id(action).ok_or_else(|| format!("不支持的粘贴动作: {}", action))?)
-        }
+        Some(action) if !action.trim().is_empty() => Some(
+            PasteAction::from_id(action).ok_or_else(|| format!("不支持的粘贴动作: {}", action))?,
+        ),
         _ => None,
     };
 
@@ -265,7 +266,10 @@ pub fn clear_clipboard_history() -> Result<(), String> {
 }
 // 根据 ID 获取单个剪贴板项
 #[tauri::command]
-pub fn get_clipboard_item_by_id_cmd(id: i64, max_length: Option<usize>) -> Result<ClipboardItem, String> {
+pub fn get_clipboard_item_by_id_cmd(
+    id: i64,
+    max_length: Option<usize>,
+) -> Result<ClipboardItem, String> {
     use crate::services::database::get_clipboard_item_by_id_with_limit;
     let mut item = get_clipboard_item_by_id_with_limit(id, max_length)?
         .ok_or_else(|| format!("剪贴板项不存在: {}", id))?;
@@ -303,20 +307,18 @@ pub fn toggle_pin_clipboard_item(id: i64) -> Result<bool, String> {
 #[tauri::command]
 pub fn copy_image_to_clipboard(file_path: String) -> Result<(), String> {
     use image::ImageFormat;
+    use sha2::{Digest, Sha256};
     use std::io::Cursor;
-    use sha2::{Sha256, Digest};
-    
+
     let path = Path::new(&file_path);
     if !path.exists() {
         return Err(format!("图片文件不存在: {}", file_path));
     }
-    
-    // 统一转为 PNG 缓存，避免剪贴板直接依赖会被销毁的源文件
-    let image_data = std::fs::read(path)
-        .map_err(|e| format!("读取图片失败: {}", e))?;
 
-    let image = image::load_from_memory(&image_data)
-        .map_err(|e| format!("解码图片失败: {}", e))?;
+    // 统一转为 PNG 缓存，避免剪贴板直接依赖会被销毁的源文件
+    let image_data = std::fs::read(path).map_err(|e| format!("读取图片失败: {}", e))?;
+
+    let image = image::load_from_memory(&image_data).map_err(|e| format!("解码图片失败: {}", e))?;
     let mut png_data = Vec::new();
     image
         .write_to(&mut Cursor::new(&mut png_data), ImageFormat::Png)
@@ -327,15 +329,13 @@ pub fn copy_image_to_clipboard(file_path: String) -> Result<(), String> {
 
     let data_dir = crate::services::get_data_directory()?;
     let clipboard_images_dir = data_dir.join("clipboard_images");
-    std::fs::create_dir_all(&clipboard_images_dir)
-        .map_err(|e| format!("创建目录失败: {}", e))?;
+    std::fs::create_dir_all(&clipboard_images_dir).map_err(|e| format!("创建目录失败: {}", e))?;
 
     let saved_path = clipboard_images_dir.join(&filename);
     if !saved_path.exists() {
-        std::fs::write(&saved_path, &png_data)
-            .map_err(|e| format!("保存图片失败: {}", e))?;
+        std::fs::write(&saved_path, &png_data).map_err(|e| format!("保存图片失败: {}", e))?;
     }
-    
+
     crate::services::paste::clipboard_content::set_clipboard_image_file_recordable(
         &saved_path.to_string_lossy(),
     )
@@ -364,8 +364,7 @@ pub fn copy_files_to_clipboard(paths: Vec<String>) -> Result<(), String> {
         })
         .collect::<Result<Vec<_>, String>>()?;
 
-    let ctx = ClipboardContext::new()
-        .map_err(|e| format!("创建剪贴板上下文失败: {}", e))?;
+    let ctx = ClipboardContext::new().map_err(|e| format!("创建剪贴板上下文失败: {}", e))?;
 
     ctx.set_files(normalized_paths)
         .map_err(|e| format!("设置文件到剪贴板失败: {}", e))
@@ -375,19 +374,22 @@ pub fn copy_files_to_clipboard(paths: Vec<String>) -> Result<(), String> {
 #[tauri::command]
 pub fn copy_clipboard_item(id: i64) -> Result<(), String> {
     use crate::services::paste::paste_handler::copy_clipboard_item as do_copy;
-    
-    let item = get_clipboard_item_by_id(id)?
-        .ok_or_else(|| format!("剪贴板项不存在: {}", id))?;
-    
+
+    let item = get_clipboard_item_by_id(id)?.ok_or_else(|| format!("剪贴板项不存在: {}", id))?;
+
     do_copy(&item)
 }
 
 #[tauri::command]
-pub fn get_clipboard_item_paste_options_cmd(id: i64) -> Result<Vec<crate::services::database::PasteOption>, String> {
-    let item = get_clipboard_item_by_id(id)?
-        .ok_or_else(|| format!("剪贴板项不存在: {}", id))?;
+pub fn get_clipboard_item_paste_options_cmd(
+    id: i64,
+) -> Result<Vec<crate::services::database::PasteOption>, String> {
+    let item = get_clipboard_item_by_id(id)?.ok_or_else(|| format!("剪贴板项不存在: {}", id))?;
     let raw_formats = get_clipboard_data_items("clipboard", &id.to_string())?;
-    Ok(crate::services::paste::options::build_paste_options(&item, &raw_formats))
+    Ok(crate::services::paste::options::build_paste_options(
+        &item,
+        &raw_formats,
+    ))
 }
 
 #[tauri::command]
@@ -400,8 +402,7 @@ pub async fn merge_copy_clipboard_items(ids: Vec<i64>) -> Result<(), String> {
         let items = ids
             .iter()
             .map(|id| {
-                get_clipboard_item_by_id(*id)?
-                    .ok_or_else(|| format!("剪贴板项不存在: {}", id))
+                get_clipboard_item_by_id(*id)?.ok_or_else(|| format!("剪贴板项不存在: {}", id))
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -412,7 +413,10 @@ pub async fn merge_copy_clipboard_items(ids: Vec<i64>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn merge_paste_clipboard_items(ids: Vec<i64>, app: tauri::AppHandle) -> Result<(), String> {
+pub async fn merge_paste_clipboard_items(
+    ids: Vec<i64>,
+    app: tauri::AppHandle,
+) -> Result<(), String> {
     let ids_for_emit = ids.clone();
     tokio::task::spawn_blocking(move || {
         if ids.is_empty() {
@@ -422,8 +426,7 @@ pub async fn merge_paste_clipboard_items(ids: Vec<i64>, app: tauri::AppHandle) -
         let items = ids
             .iter()
             .map(|id| {
-                get_clipboard_item_by_id(*id)?
-                    .ok_or_else(|| format!("剪贴板项不存在: {}", id))
+                get_clipboard_item_by_id(*id)?.ok_or_else(|| format!("剪贴板项不存在: {}", id))
             })
             .collect::<Result<Vec<_>, _>>()?;
 

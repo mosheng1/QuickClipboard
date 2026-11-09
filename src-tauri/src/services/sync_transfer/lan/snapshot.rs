@@ -56,7 +56,9 @@ pub fn list_history_records_since(since_updated_at: Option<i64>) -> Result<LanRe
     })
 }
 
-pub fn list_favorite_records_since(since_updated_at: Option<i64>) -> Result<LanRecordBatch, String> {
+pub fn list_favorite_records_since(
+    since_updated_at: Option<i64>,
+) -> Result<LanRecordBatch, String> {
     let device_id = super::runtime::device_id();
     let mut records = crate::services::database::webdav_list_favorite_records(&device_id)?;
     if let Some(since_updated_at) = since_updated_at {

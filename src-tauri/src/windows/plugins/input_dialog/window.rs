@@ -48,7 +48,7 @@ pub async fn show_dialog(
     // 清空之前的结果和配置
     super::clear_result();
     super::clear_options();
-    
+
     // 保存配置供前端读取
     super::set_options(options.clone());
 
@@ -67,10 +67,12 @@ pub async fn show_dialog(
     .center()
     .always_on_top(true)
     .focused(true)
-    .visible(false)
-    .drag_and_drop(false)
-    .build()
-    .map_err(|e| format!("创建输入对话框失败: {}", e))?;
+    .visible(false);
+    #[cfg(windows)]
+    let window = window.drag_and_drop(false);
+    let window = window
+        .build()
+        .map_err(|e| format!("创建输入对话框失败: {}", e))?;
 
     // 显示窗口
     window
@@ -80,7 +82,7 @@ pub async fn show_dialog(
     // 等待用户输入完成
     let app_clone = app.clone();
     let (tx, rx) = tokio::sync::oneshot::channel();
-    
+
     // 监听窗口关闭事件
     let window_label = window.label().to_string();
     std::thread::spawn(move || {
@@ -100,4 +102,3 @@ pub async fn show_dialog(
     // 获取结果
     Ok(super::get_result())
 }
-

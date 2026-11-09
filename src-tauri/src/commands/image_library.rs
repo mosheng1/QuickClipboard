@@ -1,5 +1,5 @@
-use serde::Deserialize;
 use crate::services::image_library;
+use serde::Deserialize;
 use std::time::Duration;
 
 #[derive(Deserialize)]
@@ -73,7 +73,8 @@ pub async fn il_save_image(payload: SaveImagePayload) -> Result<image_library::I
     let filename = payload.filename;
     let data = payload.data;
 
-    let handle = tokio::task::spawn_blocking(move || image_library::save_image(&group, &filename, &data));
+    let handle =
+        tokio::task::spawn_blocking(move || image_library::save_image(&group, &filename, &data));
     match tokio::time::timeout(Duration::from_secs(15), handle).await {
         Ok(join_result) => join_result.map_err(|e| format!("任务执行失败: {}", e))?,
         Err(_) => Err("保存图片超时".to_string()),
@@ -81,7 +82,9 @@ pub async fn il_save_image(payload: SaveImagePayload) -> Result<image_library::I
 }
 
 #[tauri::command]
-pub fn il_get_image_list(payload: GetImageListPayload) -> Result<image_library::ImageListResult, String> {
+pub fn il_get_image_list(
+    payload: GetImageListPayload,
+) -> Result<image_library::ImageListResult, String> {
     image_library::get_image_list(&payload.group, payload.offset, payload.limit)
 }
 
@@ -123,16 +126,31 @@ pub fn il_add_group(payload: ImageGroupPayload) -> Result<image_library::ImageGr
 }
 
 #[tauri::command]
-pub fn il_update_group(payload: RenameImageGroupPayload) -> Result<image_library::ImageGroupInfo, String> {
-    image_library::update_group(&payload.old_name, &payload.new_name, &payload.icon, &payload.color)
+pub fn il_update_group(
+    payload: RenameImageGroupPayload,
+) -> Result<image_library::ImageGroupInfo, String> {
+    image_library::update_group(
+        &payload.old_name,
+        &payload.new_name,
+        &payload.icon,
+        &payload.color,
+    )
 }
 
 #[tauri::command]
-pub fn il_move_image_to_group(payload: MoveImagePayload) -> Result<image_library::ImageInfo, String> {
-    image_library::move_image_to_group(&payload.source_group, &payload.filename, &payload.target_group)
+pub fn il_move_image_to_group(
+    payload: MoveImagePayload,
+) -> Result<image_library::ImageInfo, String> {
+    image_library::move_image_to_group(
+        &payload.source_group,
+        &payload.filename,
+        &payload.target_group,
+    )
 }
 
 #[tauri::command]
-pub fn il_delete_group(payload: DeleteImageGroupPayload) -> Result<Vec<image_library::ImageGroupInfo>, String> {
+pub fn il_delete_group(
+    payload: DeleteImageGroupPayload,
+) -> Result<Vec<image_library::ImageGroupInfo>, String> {
     image_library::delete_group(&payload.name, payload.move_images_to_default)
 }

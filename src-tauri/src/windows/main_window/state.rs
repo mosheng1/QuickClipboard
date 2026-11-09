@@ -1,5 +1,5 @@
-use parking_lot::RwLock;
 use once_cell::sync::Lazy;
+use parking_lot::RwLock;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum WindowState {
@@ -52,7 +52,7 @@ impl Default for MainWindowState {
     }
 }
 
-static WINDOW_STATE: Lazy<RwLock<MainWindowState>> = 
+static WINDOW_STATE: Lazy<RwLock<MainWindowState>> =
     Lazy::new(|| RwLock::new(MainWindowState::default()));
 
 pub fn get_window_state() -> MainWindowState {
@@ -138,4 +138,3 @@ pub fn set_pinned(is_pinned: bool) {
 pub fn is_pinned() -> bool {
     WINDOW_STATE.read().is_pinned
 }
-

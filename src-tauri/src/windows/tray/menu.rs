@@ -1,16 +1,11 @@
+use crate::utils::app_links;
+use crate::windows::plugins::context_menu::window::{
+    show_menu, ContextMenuRequest, MenuAppearance, MenuBehavior, MenuButton as CtxMenuButton,
+    MenuItem as CtxMenuItem, MenuPlacement,
+};
 use std::fs;
 use std::path::PathBuf;
 use tauri::AppHandle;
-use crate::windows::plugins::context_menu::window::{
-    ContextMenuRequest,
-    MenuAppearance,
-    MenuBehavior,
-    MenuButton as CtxMenuButton,
-    MenuItem as CtxMenuItem,
-    MenuPlacement,
-    show_menu,
-};
-use crate::utils::app_links;
 
 fn get_pin_images_dir() -> Result<PathBuf, String> {
     let data_dir = crate::services::get_data_directory()?;
@@ -22,26 +17,28 @@ pub fn get_pin_images_list() -> Vec<(String, String)> {
         Ok(dir) => dir,
         Err(_) => return vec![],
     };
-    
+
     if !pin_dir.exists() {
         return vec![];
     }
-    
+
     let mut images: Vec<(String, String, std::time::SystemTime)> = Vec::new();
     let image_extensions = ["png", "jpg", "jpeg", "gif", "bmp", "webp", "ico"];
-    
+
     if let Ok(entries) = fs::read_dir(&pin_dir) {
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_file() {
                 if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
                     if image_extensions.contains(&ext.to_lowercase().as_str()) {
-                        let file_name = path.file_name()
+                        let file_name = path
+                            .file_name()
                             .and_then(|n| n.to_str())
                             .unwrap_or("未知")
                             .to_string();
                         let file_path = path.to_string_lossy().to_string();
-                        let modified = entry.metadata()
+                        let modified = entry
+                            .metadata()
                             .and_then(|m| m.modified())
                             .unwrap_or(std::time::UNIX_EPOCH);
                         images.push((file_name, file_path, modified));
@@ -52,7 +49,10 @@ pub fn get_pin_images_list() -> Vec<(String, String)> {
     }
 
     images.sort_by(|a, b| b.2.cmp(&a.2));
-    images.into_iter().map(|(name, path, _)| (name, path)).collect()
+    images
+        .into_iter()
+        .map(|(name, path, _)| (name, path))
+        .collect()
 }
 
 const MAX_PIN_IMAGES_DISPLAY: usize = 20;
@@ -76,7 +76,7 @@ fn build_pin_images_children() -> Vec<CtxMenuItem> {
     let images = get_pin_images_list();
     let total_count = images.len();
     let mut children = Vec::new();
-    
+
     if images.is_empty() {
         children.push(menu_item_with_state("empty", "(暂无贴图)", None, true));
     } else {
@@ -87,11 +87,15 @@ fn build_pin_images_children() -> Vec<CtxMenuItem> {
                 name.clone()
             };
             children.push(
-                CtxMenuItem::item(format!("pin-image-{}", idx), display_name, Some("ti ti-photo"))
-                    .with_preview_image(path.clone()),
+                CtxMenuItem::item(
+                    format!("pin-image-{}", idx),
+                    display_name,
+                    Some("ti ti-photo"),
+                )
+                .with_preview_image(path.clone()),
             );
         }
-        
+
         if total_count > MAX_PIN_IMAGES_DISPLAY {
             children.push(separator_item());
             children.push(menu_item(
@@ -101,10 +105,14 @@ fn build_pin_images_children() -> Vec<CtxMenuItem> {
             ));
         }
     }
-    
+
     children.push(separator_item());
-    children.push(menu_item("pin-open-folder", "打开贴图目录", Some("ti ti-folder")));
-    
+    children.push(menu_item(
+        "pin-open-folder",
+        "打开贴图目录",
+        Some("ti ti-folder"),
+    ));
+
     children
 }
 
@@ -112,12 +120,25 @@ fn build_pin_images_children() -> Vec<CtxMenuItem> {
 pub async fn show_tray_menu(app: AppHandle) -> Result<(), String> {
     let settings = crate::get_settings();
     let is_force_update = crate::windows::updater_window::is_force_update_mode();
-    
-    let hotkeys_label = if settings.hotkeys_enabled { "禁用快捷键" } else { "启用快捷键" };
-    let monitor_label = if settings.clipboard_monitor { "禁用剪贴板监听" } else { "启用剪贴板监听" };
-    
+
+    let hotkeys_label = if settings.hotkeys_enabled {
+        "禁用快捷键"
+    } else {
+        "启用快捷键"
+    };
+    let monitor_label = if settings.clipboard_monitor {
+        "禁用剪贴板监听"
+    } else {
+        "启用剪贴板监听"
+    };
+
     let items = vec![
-        menu_item_with_state("toggle", "显示/隐藏", Some("ti ti-app-window"), is_force_update),
+        menu_item_with_state(
+            "toggle",
+            "显示/隐藏",
+            Some("ti ti-app-window"),
+            is_force_update,
+        ),
         separator_item(),
         menu_item_with_state("settings", "设置", Some("ti ti-settings"), is_force_update),
         CtxMenuItem::submenu(
@@ -139,10 +160,25 @@ pub async fn show_tray_menu(app: AppHandle) -> Result<(), String> {
         )
         .with_disabled(is_force_update),
         separator_item(),
-        menu_item_with_state("toggle-hotkeys", hotkeys_label, Some("ti ti-keyboard"), is_force_update),
-        menu_item_with_state("toggle-clipboard-monitor", monitor_label, Some("ti ti-clipboard"), is_force_update),
+        menu_item_with_state(
+            "toggle-hotkeys",
+            hotkeys_label,
+            Some("ti ti-keyboard"),
+            is_force_update,
+        ),
+        menu_item_with_state(
+            "toggle-clipboard-monitor",
+            monitor_label,
+            Some("ti ti-clipboard"),
+            is_force_update,
+        ),
         separator_item(),
-        menu_item_with_state("low-memory-mode", "进入低占用模式", Some("ti ti-leaf"), is_force_update),
+        menu_item_with_state(
+            "low-memory-mode",
+            "进入低占用模式",
+            Some("ti ti-leaf"),
+            is_force_update,
+        ),
         separator_item(),
         CtxMenuItem::button_row(
             "tray-links",
@@ -157,10 +193,14 @@ pub async fn show_tray_menu(app: AppHandle) -> Result<(), String> {
         menu_item("restart", "重启程序", Some("ti ti-refresh")),
         menu_item("quit", "退出", Some("ti ti-power")),
     ];
-    
+
     let (cursor_x, cursor_y) = crate::mouse::get_cursor_position();
-    let theme = if settings.theme.is_empty() { "auto".to_string() } else { settings.theme };
-    
+    let theme = if settings.theme.is_empty() {
+        "auto".to_string()
+    } else {
+        settings.theme
+    };
+
     let appearance = MenuAppearance {
         theme: Some(theme),
         light_theme_style: Some(settings.light_theme_style),
@@ -177,11 +217,11 @@ pub async fn show_tray_menu(app: AppHandle) -> Result<(), String> {
         .with_placement(MenuPlacement::physical_point(cursor_x, cursor_y))
         .with_appearance(appearance)
         .with_behavior(MenuBehavior::tray());
-    
+
     if let Ok(Some(selected_id)) = show_menu(app.clone(), options).await {
         handle_tray_menu_selection(&app, &selected_id);
     }
-    
+
     Ok(())
 }
 
@@ -248,8 +288,11 @@ fn handle_tray_menu_selection(app: &AppHandle, selected_id: &str) {
                         let file_path = file_path.clone();
                         tauri::async_runtime::spawn(async move {
                             if let Err(e) = crate::windows::pin_image_window::pin_image_from_file(
-                                app, file_path, None, None, None, None, None, None, None, None, None, None, None,
-                            ).await {
+                                app, file_path, None, None, None, None, None, None, None, None,
+                                None, None, None,
+                            )
+                            .await
+                            {
                                 eprintln!("创建贴图窗口失败: {}", e);
                             }
                         });
@@ -266,12 +309,12 @@ fn toggle_hotkeys(app: &AppHandle) {
     let mut settings = crate::get_settings();
     settings.hotkeys_enabled = !settings.hotkeys_enabled;
     let enabled = settings.hotkeys_enabled;
-    
+
     if let Err(e) = crate::update_settings(settings.clone()) {
         eprintln!("更新快捷键设置失败: {}", e);
         return;
     }
-    
+
     if enabled {
         if let Err(e) = crate::hotkey::reload_from_settings() {
             eprintln!("重新加载快捷键失败: {}", e);
@@ -280,7 +323,11 @@ fn toggle_hotkeys(app: &AppHandle) {
         crate::hotkey::unregister_all();
     }
 
-    let message = if enabled { "快捷键已启用" } else { "快捷键已禁用" };
+    let message = if enabled {
+        "快捷键已启用"
+    } else {
+        "快捷键已禁用"
+    };
     let _ = crate::services::notification::show_notification(app, "QuickClipboard", message);
 }
 

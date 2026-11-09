@@ -15,9 +15,9 @@ pub const DEFAULT_PAIRING_CODE_TTL_SECS: u64 = 300;
 pub const DEFAULT_PAIRING_MAX_ATTEMPTS: u8 = 5;
 pub const DEFAULT_HTTP_PORT: u16 = 35691;
 
+pub use auto_sync::{LanAutoSyncSettings, LanAutoSyncStatus};
+pub use discovery::DiscoveredLanPeer;
 pub use peer_store::PairedPeerInfo;
 pub use runtime::{LanRuntimeStatus, PairingCodeView};
 pub use snapshot::{LanGroupBatch, LanRecordBatch, LanSyncSnapshot, LanTombstoneBatch};
-pub use discovery::DiscoveredLanPeer;
 pub use transfer::{FileTransferProgress, FileTransferProgressCallback, FileTransferResult};
-pub use auto_sync::{LanAutoSyncSettings, LanAutoSyncStatus};

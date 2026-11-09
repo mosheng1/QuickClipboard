@@ -1,10 +1,9 @@
-use super::{AppSettings, storage::SettingsStorage};
+use super::{storage::SettingsStorage, AppSettings};
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 
-static SETTINGS: Lazy<RwLock<AppSettings>> = Lazy::new(|| {
-    RwLock::new(SettingsStorage::load().unwrap_or_default())
-});
+static SETTINGS: Lazy<RwLock<AppSettings>> =
+    Lazy::new(|| RwLock::new(SettingsStorage::load().unwrap_or_default()));
 
 pub fn get_settings() -> AppSettings {
     SETTINGS.read().clone()

@@ -1,6 +1,6 @@
 // 输入对话框命令
+use super::window::{show_dialog, InputDialogOptions, InputType};
 use tauri::AppHandle;
-use super::window::{InputDialogOptions, InputType, show_dialog};
 
 // 前端获取对话框配置
 #[tauri::command]
@@ -32,7 +32,7 @@ pub async fn show_input(
         Some("number") => InputType::Number,
         _ => InputType::Text,
     };
-    
+
     let options = InputDialogOptions {
         title,
         message,
@@ -42,7 +42,6 @@ pub async fn show_input(
         min_value,
         max_value,
     };
-    
+
     show_dialog(app, options).await
 }
-

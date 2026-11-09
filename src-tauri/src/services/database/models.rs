@@ -14,20 +14,20 @@ pub struct ClipboardItem {
     pub content: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub html_content: Option<String>,
-    pub content_type: String,  
+    pub content_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_id: Option<String>,
     pub item_order: i64,
     pub is_pinned: bool,
     pub paste_count: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_app: Option<String>,       
+    pub source_app: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub source_icon_hash: Option<String>, 
+    pub source_icon_hash: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub char_count: Option<i64>,
-    pub created_at: i64,  
-    pub updated_at: i64, 
+    pub created_at: i64,
+    pub updated_at: i64,
 }
 
 // 剪贴板原始格式数据
@@ -72,7 +72,7 @@ pub struct FavoriteItem {
     pub content: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub html_content: Option<String>,
-    pub content_type: String,  
+    pub content_type: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_id: Option<String>,
     pub group_name: String,
@@ -80,8 +80,8 @@ pub struct FavoriteItem {
     pub paste_count: i64,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub char_count: Option<i64>,
-    pub created_at: i64,  
-    pub updated_at: i64, 
+    pub created_at: i64,
+    pub updated_at: i64,
 }
 
 // 分组信息
@@ -182,4 +182,3 @@ impl Default for FavoritesQueryParams {
         }
     }
 }
-

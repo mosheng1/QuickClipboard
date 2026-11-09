@@ -14,16 +14,16 @@ pub fn truncate_string(s: String, max_len: usize) -> String {
     if s.is_empty() || s.len() <= max_len {
         return s;
     }
-    
+
     let mut truncate_point = max_len.saturating_sub(50);
     while truncate_point > 0 && !s.is_char_boundary(truncate_point) {
         truncate_point -= 1;
     }
-    
+
     if truncate_point == 0 {
         return "...(内容过长已截断)".to_string();
     }
-    
+
     match s.get(..truncate_point) {
         Some(slice) => format!("{}...(内容过长已截断)", slice),
         None => "...(内容过长已截断)".to_string(),
@@ -41,10 +41,7 @@ fn original_byte_index_at_lowercase_offset(text: &str, target_offset: usize) -> 
             return Some(byte_index);
         }
 
-        lowercase_offset += ch
-            .to_lowercase()
-            .map(char::len_utf8)
-            .sum::<usize>();
+        lowercase_offset += ch.to_lowercase().map(char::len_utf8).sum::<usize>();
         if lowercase_offset > target_offset {
             return None;
         }
@@ -83,7 +80,11 @@ fn byte_index_before_chars(text: &str, end: usize, count: usize) -> usize {
 // 截取关键词附近的搜索摘要，并让关键词靠近摘要开头。
 pub fn truncate_around_keyword(s: String, keyword: &str, max_len: usize) -> String {
     if s.is_empty() || keyword.is_empty() || s.len() <= max_len {
-        return if s.len() <= max_len { s } else { truncate_string(s, max_len) };
+        return if s.len() <= max_len {
+            s
+        } else {
+            truncate_string(s, max_len)
+        };
     }
 
     let (keyword_start, keyword_end) = match find_keyword_range(&s, keyword) {
@@ -113,7 +114,7 @@ pub fn truncate_around_keyword(s: String, keyword: &str, max_len: usize) -> Stri
         Some(slice) => slice,
         None => return truncate_string(s, max_len),
     };
-    
+
     let mut result = String::with_capacity(max_len);
 
     if start > 0 {

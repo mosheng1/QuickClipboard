@@ -1,11 +1,11 @@
 // 菜单事件处理
 
-use tauri::{AppHandle, menu::MenuEvent};
 use super::builder::update_native_menu;
+use tauri::{menu::MenuEvent, AppHandle};
 
 pub fn handle_native_menu_event(app: &AppHandle, event: &MenuEvent) {
     let id = event.id().as_ref();
-    
+
     match id {
         "toggle" => {
             if let Err(e) = crate::services::low_memory::toggle_panel() {
@@ -48,12 +48,12 @@ pub fn handle_native_menu_event(app: &AppHandle, event: &MenuEvent) {
 fn toggle_hotkeys(app: &AppHandle) {
     let mut settings = crate::get_settings();
     settings.hotkeys_enabled = !settings.hotkeys_enabled;
-    
+
     if let Err(e) = crate::update_settings(settings.clone()) {
         eprintln!("更新快捷键设置失败: {}", e);
         return;
     }
-    
+
     if settings.hotkeys_enabled {
         if let Err(e) = crate::hotkey::reload_from_settings() {
             eprintln!("重新加载快捷键失败: {}", e);

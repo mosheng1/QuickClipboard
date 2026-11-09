@@ -122,7 +122,9 @@ pub fn cached_config(scope: &str) -> Option<WebdavE2eeConfig> {
 }
 
 pub fn cache_config(scope: &str, config: &WebdavE2eeConfig) {
-    CONFIG_CACHE.lock().insert(scope.to_string(), config.clone());
+    CONFIG_CACHE
+        .lock()
+        .insert(scope.to_string(), config.clone());
 }
 
 pub fn clear_cached_keys() {
@@ -144,7 +146,9 @@ impl WebdavCryptoContext {
         };
         FILE_HEADER_LEN
             .checked_add(plain_size)
-            .and_then(|value| value.checked_add(frames.checked_mul(FILE_FRAME_HEADER_LEN + TAG_LEN)?))
+            .and_then(|value| {
+                value.checked_add(frames.checked_mul(FILE_FRAME_HEADER_LEN + TAG_LEN)?)
+            })
             .ok_or_else(|| "云端加密文件大小溢出".to_string())
     }
 
@@ -267,7 +271,8 @@ impl WebdavCryptoContext {
             .await
             .map_err(|e| format!("读取云端加密文件头失败: {}", e))?;
         let chunk_size = u64::from_le_bytes(u64_bytes);
-        let chunk_size_usize = usize::try_from(chunk_size).map_err(|_| "云端文件分片大小无效".to_string())?;
+        let chunk_size_usize =
+            usize::try_from(chunk_size).map_err(|_| "云端文件分片大小无效".to_string())?;
         validate_file_chunk_size(chunk_size_usize)?;
 
         reader
@@ -289,7 +294,10 @@ impl WebdavCryptoContext {
                 .await
                 .map_err(|e| format!("读取云端加密文件分片失败: {}", e))?;
             let plain_len = u32::from_le_bytes(len_bytes);
-            if plain_len == 0 || plain_len as u64 > remaining || plain_len as usize > chunk_size_usize {
+            if plain_len == 0
+                || plain_len as u64 > remaining
+                || plain_len as usize > chunk_size_usize
+            {
                 return Err("云端加密文件分片长度无效".to_string());
             }
 
@@ -427,7 +435,12 @@ fn derive_master_key(config: &WebdavE2eeConfig, password: &str) -> Result<[u8; K
 fn cache_key(scope: &str, config: &WebdavE2eeConfig, password: &str) -> String {
     let mut hasher = Sha256::new();
     hasher.update(password.as_bytes());
-    format!("{}\n{}\n{}", scope, config.kdf.salt, hex::encode(hasher.finalize()))
+    format!(
+        "{}\n{}\n{}",
+        scope,
+        config.kdf.salt,
+        hex::encode(hasher.finalize())
+    )
 }
 
 fn validate_file_chunk_size(chunk_size: usize) -> Result<(), String> {
@@ -474,9 +487,13 @@ mod tests {
         clear_cached_keys();
         let config = create_config();
         let context = context_for_config("test", &config, "secret").unwrap();
-        let encrypted = context.encrypt_bytes("history/index.json", b"hello").unwrap();
+        let encrypted = context
+            .encrypt_bytes("history/index.json", b"hello")
+            .unwrap();
         assert_ne!(encrypted, b"hello");
-        let decrypted = context.decrypt_bytes("history/index.json", &encrypted).unwrap();
+        let decrypted = context
+            .decrypt_bytes("history/index.json", &encrypted)
+            .unwrap();
         assert_eq!(decrypted, b"hello");
     }
 
@@ -485,7 +502,9 @@ mod tests {
         clear_cached_keys();
         let config = create_config();
         let context = context_for_config("test", &config, "secret").unwrap();
-        let encrypted = context.encrypt_bytes("history/index.json", b"hello").unwrap();
+        let encrypted = context
+            .encrypt_bytes("history/index.json", b"hello")
+            .unwrap();
         let result = context.decrypt_bytes("favorites/index.json", &encrypted);
         assert!(result.is_err());
     }
@@ -496,7 +515,9 @@ mod tests {
         let config = create_config();
         let context = context_for_config("test", &config, "secret").unwrap();
         let path = "cloud_files/objects/test.qcf";
-        let plaintext = (0..10000).map(|value| (value % 251) as u8).collect::<Vec<_>>();
+        let plaintext = (0..10000)
+            .map(|value| (value % 251) as u8)
+            .collect::<Vec<_>>();
         let plain_len = plaintext.len() as u64;
         let plain_for_task = plaintext.clone();
 

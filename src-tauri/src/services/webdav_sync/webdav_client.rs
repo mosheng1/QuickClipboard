@@ -71,12 +71,12 @@ impl WebdavClient {
         Ok(())
     }
 
-    fn set_encryption_state(&self, password: &str, config: &crypto::WebdavE2eeConfig) -> Result<(), String> {
-        let context = crypto::context_for_config(
-            &self.encryption_scope(),
-            config,
-            password,
-        )?;
+    fn set_encryption_state(
+        &self,
+        password: &str,
+        config: &crypto::WebdavE2eeConfig,
+    ) -> Result<(), String> {
+        let context = crypto::context_for_config(&self.encryption_scope(), config, password)?;
         *self.crypto.lock() = Some(EncryptionState {
             context,
             password: password.to_string(),
@@ -85,15 +85,27 @@ impl WebdavClient {
     }
 
     fn crypto_context(&self) -> Option<WebdavCryptoContext> {
-        self.crypto.lock().as_ref().map(|state| state.context.clone())
+        self.crypto
+            .lock()
+            .as_ref()
+            .map(|state| state.context.clone())
     }
 
     fn encryption_password(&self) -> Option<String> {
-        self.crypto.lock().as_ref().map(|state| state.password.clone())
+        self.crypto
+            .lock()
+            .as_ref()
+            .map(|state| state.password.clone())
     }
 
-    async fn load_or_create_encryption_config(&self, scope: &str) -> Result<crypto::WebdavE2eeConfig, String> {
-        let config = match self.get_plain_json::<crypto::WebdavE2eeConfig>(crypto::CONFIG_PATH).await {
+    async fn load_or_create_encryption_config(
+        &self,
+        scope: &str,
+    ) -> Result<crypto::WebdavE2eeConfig, String> {
+        let config = match self
+            .get_plain_json::<crypto::WebdavE2eeConfig>(crypto::CONFIG_PATH)
+            .await
+        {
             Ok(Some(config)) => config,
             Ok(None) => self.create_or_load_encryption_config().await?,
             Err(error) if error.contains("409") => self.create_or_load_encryption_config().await?,
@@ -105,7 +117,10 @@ impl WebdavClient {
 
     async fn create_or_load_encryption_config(&self) -> Result<crypto::WebdavE2eeConfig, String> {
         self.mkcol("").await?;
-        match self.get_plain_json::<crypto::WebdavE2eeConfig>(crypto::CONFIG_PATH).await? {
+        match self
+            .get_plain_json::<crypto::WebdavE2eeConfig>(crypto::CONFIG_PATH)
+            .await?
+        {
             Some(config) => Ok(config),
             None => {
                 let config = crypto::create_config();
@@ -130,7 +145,8 @@ impl WebdavClient {
     pub async fn ensure_collection_dirs(&self, collection: SyncCollection) -> Result<(), String> {
         self.ensure_dir_cached("").await?;
         self.ensure_dir_cached(collection.dir()).await?;
-        self.ensure_dir_cached(&format!("{}/chunks", collection.dir())).await
+        self.ensure_dir_cached(&format!("{}/chunks", collection.dir()))
+            .await
     }
 
     pub async fn ensure_groups_dir(&self) -> Result<(), String> {
@@ -170,11 +186,16 @@ impl WebdavClient {
         let Some(bytes) = self.get_bytes(path).await? else {
             return Ok(None);
         };
-        let value = serde_json::from_slice(&bytes).map_err(|e| format!("解析 WebDAV JSON 失败: {}", e))?;
+        let value =
+            serde_json::from_slice(&bytes).map_err(|e| format!("解析 WebDAV JSON 失败: {}", e))?;
         Ok(Some(value))
     }
 
-    pub async fn put_json<T: Serialize + ?Sized>(&self, path: &str, value: &T) -> Result<(), String> {
+    pub async fn put_json<T: Serialize + ?Sized>(
+        &self,
+        path: &str,
+        value: &T,
+    ) -> Result<(), String> {
         let body = serde_json::to_vec_pretty(value).map_err(|e| e.to_string())?;
         self.put_bytes(path, body).await
     }
@@ -189,7 +210,9 @@ impl WebdavClient {
                 Ok(bytes) => Ok(Some(bytes)),
                 Err(error) if should_refresh_encryption_config(&error) => {
                     self.refresh_encryption_config().await?;
-                    let crypto = self.crypto_context().ok_or_else(|| "WebDAV 云端加密未启用".to_string())?;
+                    let crypto = self
+                        .crypto_context()
+                        .ok_or_else(|| "WebDAV 云端加密未启用".to_string())?;
                     Ok(Some(crypto.decrypt_bytes(&path, &bytes)?))
                 }
                 Err(error) => Err(error),
@@ -214,7 +237,9 @@ impl WebdavClient {
         chunk_size: usize,
         progress: Option<Arc<dyn Fn(u64) + Send + Sync + 'static>>,
     ) -> Result<String, String> {
-        let crypto = self.crypto_context().ok_or_else(|| "WebDAV 云端加密未启用".to_string())?;
+        let crypto = self
+            .crypto_context()
+            .ok_or_else(|| "WebDAV 云端加密未启用".to_string())?;
         let remote_path = normalize_path(path);
         let encrypted_size = crypto.encrypted_file_size(plain_size, chunk_size)?;
         let source = source.to_path_buf();
@@ -244,28 +269,45 @@ impl WebdavClient {
         }
     }
 
-    pub(crate) async fn get_plain_json<T: DeserializeOwned>(&self, path: &str) -> Result<Option<T>, String> {
+    pub(crate) async fn get_plain_json<T: DeserializeOwned>(
+        &self,
+        path: &str,
+    ) -> Result<Option<T>, String> {
         let Some(bytes) = self.get_raw_bytes(path).await? else {
             return Ok(None);
         };
-        let value = serde_json::from_slice(&bytes).map_err(|e| format!("解析 WebDAV JSON 失败: {}", e))?;
+        let value =
+            serde_json::from_slice(&bytes).map_err(|e| format!("解析 WebDAV JSON 失败: {}", e))?;
         Ok(Some(value))
     }
 
-    pub(crate) async fn put_plain_json<T: Serialize + ?Sized>(&self, path: &str, value: &T) -> Result<(), String> {
+    pub(crate) async fn put_plain_json<T: Serialize + ?Sized>(
+        &self,
+        path: &str,
+        value: &T,
+    ) -> Result<(), String> {
         let body = serde_json::to_vec_pretty(value).map_err(|e| e.to_string())?;
         self.put_raw_bytes(path, body).await
     }
 
     async fn get_raw_bytes(&self, path: &str) -> Result<Option<Vec<u8>>, String> {
-        let resp = self.request(Method::GET, path).send().await.map_err(map_reqwest_error)?;
+        let resp = self
+            .request(Method::GET, path)
+            .send()
+            .await
+            .map_err(map_reqwest_error)?;
         if resp.status() == StatusCode::NOT_FOUND {
             return Ok(None);
         }
         if !resp.status().is_success() {
-            return Err(format_webdav_status_error("读取 WebDAV 文件失败", resp.status()));
+            return Err(format_webdav_status_error(
+                "读取 WebDAV 文件失败",
+                resp.status(),
+            ));
         }
-        Ok(Some(resp.bytes().await.map_err(map_reqwest_error)?.to_vec()))
+        Ok(Some(
+            resp.bytes().await.map_err(map_reqwest_error)?.to_vec(),
+        ))
     }
 
     async fn put_raw_bytes(&self, path: &str, bytes: Vec<u8>) -> Result<(), String> {
@@ -278,11 +320,19 @@ impl WebdavClient {
         if resp.status().is_success() {
             Ok(())
         } else {
-            Err(format_webdav_status_error("写入 WebDAV 文件失败", resp.status()))
+            Err(format_webdav_status_error(
+                "写入 WebDAV 文件失败",
+                resp.status(),
+            ))
         }
     }
 
-    async fn put_raw_stream(&self, path: &str, reader: DuplexStream, content_length: u64) -> Result<(), String> {
+    async fn put_raw_stream(
+        &self,
+        path: &str,
+        reader: DuplexStream,
+        content_length: u64,
+    ) -> Result<(), String> {
         let stream = ReaderStream::new(reader);
         let resp = self
             .request(Method::PUT, path)
@@ -294,18 +344,33 @@ impl WebdavClient {
         if resp.status().is_success() {
             Ok(())
         } else {
-            Err(format_webdav_status_error("写入 WebDAV 文件失败", resp.status()))
+            Err(format_webdav_status_error(
+                "写入 WebDAV 文件失败",
+                resp.status(),
+            ))
         }
     }
 
-    pub async fn download_encrypted_file(&self, path: &str, destination: &Path) -> Result<String, String> {
-        let crypto = self.crypto_context().ok_or_else(|| "WebDAV 云端加密未启用".to_string())?;
-        match self.download_encrypted_file_with_context(path, destination, crypto).await {
+    pub async fn download_encrypted_file(
+        &self,
+        path: &str,
+        destination: &Path,
+    ) -> Result<String, String> {
+        let crypto = self
+            .crypto_context()
+            .ok_or_else(|| "WebDAV 云端加密未启用".to_string())?;
+        match self
+            .download_encrypted_file_with_context(path, destination, crypto)
+            .await
+        {
             Ok(sha256) => Ok(sha256),
             Err(error) if should_refresh_encryption_config(&error) => {
                 self.refresh_encryption_config().await?;
-                let crypto = self.crypto_context().ok_or_else(|| "WebDAV 云端加密未启用".to_string())?;
-                self.download_encrypted_file_with_context(path, destination, crypto).await
+                let crypto = self
+                    .crypto_context()
+                    .ok_or_else(|| "WebDAV 云端加密未启用".to_string())?;
+                self.download_encrypted_file_with_context(path, destination, crypto)
+                    .await
             }
             Err(error) => Err(error),
         }
@@ -323,12 +388,19 @@ impl WebdavClient {
                 .map_err(|e| format!("创建下载目录失败: {}", e))?;
         }
 
-        let resp = self.request(Method::GET, path).send().await.map_err(map_reqwest_error)?;
+        let resp = self
+            .request(Method::GET, path)
+            .send()
+            .await
+            .map_err(map_reqwest_error)?;
         if resp.status() == StatusCode::NOT_FOUND {
             return Err("云端文件不存在".to_string());
         }
         if !resp.status().is_success() {
-            return Err(format_webdav_status_error("读取 WebDAV 文件失败", resp.status()));
+            return Err(format_webdav_status_error(
+                "读取 WebDAV 文件失败",
+                resp.status(),
+            ));
         }
 
         let stream = resp
@@ -344,24 +416,38 @@ impl WebdavClient {
     }
 
     pub async fn delete_path(&self, path: &str) -> Result<(), String> {
-        let resp = self.request(Method::DELETE, path).send().await.map_err(map_reqwest_error)?;
+        let resp = self
+            .request(Method::DELETE, path)
+            .send()
+            .await
+            .map_err(map_reqwest_error)?;
         if resp.status().is_success() || resp.status() == StatusCode::NOT_FOUND {
             Ok(())
         } else {
-            Err(format_webdav_status_error("删除 WebDAV 文件失败", resp.status()))
+            Err(format_webdav_status_error(
+                "删除 WebDAV 文件失败",
+                resp.status(),
+            ))
         }
     }
 
     pub async fn mkcol(&self, path: &str) -> Result<(), String> {
         let method = Method::from_bytes(b"MKCOL").map_err(|e| e.to_string())?;
-        let resp = self.request(method, path).send().await.map_err(map_reqwest_error)?;
+        let resp = self
+            .request(method, path)
+            .send()
+            .await
+            .map_err(map_reqwest_error)?;
         if resp.status().is_success()
             || resp.status() == StatusCode::METHOD_NOT_ALLOWED
             || resp.status().as_u16() == 405
         {
             Ok(())
         } else {
-            Err(format_webdav_status_error("创建 WebDAV 目录失败", resp.status()))
+            Err(format_webdav_status_error(
+                "创建 WebDAV 目录失败",
+                resp.status(),
+            ))
         }
     }
 
@@ -385,7 +471,10 @@ impl WebdavClient {
         if self.config.username.trim().is_empty() {
             builder
         } else {
-            builder.basic_auth(self.config.username.trim().to_string(), Some(self.config.password.clone()))
+            builder.basic_auth(
+                self.config.username.trim().to_string(),
+                Some(self.config.password.clone()),
+            )
         }
     }
 

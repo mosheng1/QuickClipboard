@@ -18,10 +18,12 @@ pub fn create_settings_window(app: &AppHandle) -> Result<(), String> {
     .shadow(false)
     .skip_taskbar(false)
     .visible(true)
-    .focused(true)
-    .drag_and_drop(false)
-    .build()
-    .map_err(|e| format!("创建设置窗口失败: {}", e))?;
+    .focused(true);
+    #[cfg(windows)]
+    let settings_window = settings_window.drag_and_drop(false);
+    let settings_window = settings_window
+        .build()
+        .map_err(|e| format!("创建设置窗口失败: {}", e))?;
 
     let settings_window_for_events = settings_window.clone();
     settings_window.on_window_event(move |event| match event {
@@ -37,4 +39,3 @@ pub fn create_settings_window(app: &AppHandle) -> Result<(), String> {
 
     Ok(())
 }
-

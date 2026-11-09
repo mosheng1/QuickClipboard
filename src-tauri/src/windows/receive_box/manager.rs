@@ -46,11 +46,13 @@ pub fn list_lan_files() -> Result<Vec<ReceiveBoxLanFile>, String> {
         });
     }
 
-    let entries = std::fs::read_dir(&dir)
-        .map_err(|e| format!("读取局域网接收文件目录失败: {}", e))?;
+    let entries =
+        std::fs::read_dir(&dir).map_err(|e| format!("读取局域网接收文件目录失败: {}", e))?;
     for entry in entries.flatten() {
         let path = entry.path();
-        let Ok(metadata) = entry.metadata() else { continue; };
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
         if !metadata.is_file() || is_temp_file(&path) {
             continue;
         }
@@ -137,8 +139,7 @@ pub async fn download_cloud_file(file_id: String) -> Result<ReceiveBoxCloudFile,
 
 pub fn open_local_file(path: String) -> Result<(), String> {
     let path = validate_managed_file_path(&path)?;
-    tauri_plugin_opener::open_path(&path, None::<&str>)
-        .map_err(|e| format!("打开文件失败: {}", e))
+    tauri_plugin_opener::open_path(&path, None::<&str>).map_err(|e| format!("打开文件失败: {}", e))
 }
 
 pub fn reveal_local_file(path: String) -> Result<(), String> {
@@ -158,8 +159,7 @@ pub fn delete_local_file(path: String) -> Result<(), String> {
     }
 
     let path = validate_managed_file_path(&path)?;
-    std::fs::remove_file(&path)
-        .map_err(|e| format!("删除本地文件失败: {}", e))?;
+    std::fs::remove_file(&path).map_err(|e| format!("删除本地文件失败: {}", e))?;
     forget_lan_file_metadata(&path)?;
     Ok(())
 }
@@ -202,17 +202,13 @@ fn validate_managed_file_path(path: &str) -> Result<PathBuf, String> {
     let canonical = candidate
         .canonicalize()
         .map_err(|e| format!("文件不存在或无法访问: {}", e))?;
-    let metadata = std::fs::metadata(&canonical)
-        .map_err(|e| format!("读取文件信息失败: {}", e))?;
+    let metadata = std::fs::metadata(&canonical).map_err(|e| format!("读取文件信息失败: {}", e))?;
     if !metadata.is_file() || is_internal_managed_file(&canonical)? {
         return Err("只能操作收件盒内的普通文件".to_string());
     }
 
     let data_dir = crate::services::get_data_directory()?;
-    let roots = [
-        received_files_dir()?,
-        data_dir.join("cloud_file_downloads"),
-    ];
+    let roots = [received_files_dir()?, data_dir.join("cloud_file_downloads")];
     for root in roots {
         if let Ok(root) = root.canonicalize() {
             if canonical.starts_with(root) {

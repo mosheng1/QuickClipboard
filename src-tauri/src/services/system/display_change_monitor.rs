@@ -14,8 +14,8 @@ mod windows_display_change_monitor {
     use windows::Win32::UI::WindowsAndMessaging::{
         CreateWindowExW, DefWindowProcW, DispatchMessageW, GetMessageW, PeekMessageW,
         RegisterClassExW, TranslateMessage, CS_HREDRAW, CS_VREDRAW, CW_USEDEFAULT, MSG,
-        PM_NOREMOVE, WM_DESTROY, WM_DISPLAYCHANGE, WM_DPICHANGED, WM_SETTINGCHANGE,
-        WNDCLASSEXW, WS_OVERLAPPEDWINDOW,
+        PM_NOREMOVE, WM_DESTROY, WM_DISPLAYCHANGE, WM_DPICHANGED, WM_SETTINGCHANGE, WNDCLASSEXW,
+        WS_OVERLAPPEDWINDOW,
     };
 
     static DISPLAY_MONITOR_ACTIVE: AtomicBool = AtomicBool::new(false);

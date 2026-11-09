@@ -12,7 +12,7 @@ impl ContentType {
             types: vec![primary_type.to_string()],
         }
     }
-    
+
     pub fn add_type(&mut self, type_name: &str) {
         if !self.types.contains(&type_name.to_string()) {
             self.types.push(type_name.to_string());

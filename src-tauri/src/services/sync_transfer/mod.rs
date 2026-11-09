@@ -33,7 +33,10 @@ pub fn lan_remove_paired_peer(device_id: &str) -> Result<bool, String> {
     lan::peer_store::remove_peer(device_id)
 }
 
-pub async fn lan_pair_with_peer(base_url: String, pairing_code: String) -> Result<lan::PairedPeerInfo, String> {
+pub async fn lan_pair_with_peer(
+    base_url: String,
+    pairing_code: String,
+) -> Result<lan::PairedPeerInfo, String> {
     lan::http_client::pair_with_peer(base_url, pairing_code).await
 }
 
@@ -59,7 +62,9 @@ pub fn lan_auto_sync_status() -> lan::LanAutoSyncStatus {
     lan::auto_sync::status()
 }
 
-pub fn lan_update_auto_sync_settings(settings: lan::LanAutoSyncSettings) -> Result<lan::LanAutoSyncSettings, String> {
+pub fn lan_update_auto_sync_settings(
+    settings: lan::LanAutoSyncSettings,
+) -> Result<lan::LanAutoSyncSettings, String> {
     lan::auto_sync::update_settings(settings)
 }
 
@@ -76,19 +81,26 @@ pub async fn lan_start_configured_services(app: tauri::AppHandle) {
     let _ = lan::http_server::start(app, Default::default()).await;
 }
 
-pub async fn lan_pull_from_peer(device_id: &str) -> Result<crate::services::webdav_sync::SyncReport, String> {
+pub async fn lan_pull_from_peer(
+    device_id: &str,
+) -> Result<crate::services::webdav_sync::SyncReport, String> {
     let report = lan::pull::pull_from_peer(device_id).await?;
     let _ = lan::peer_store::mark_peer_seen(device_id);
     Ok(report)
 }
 
-pub async fn lan_push_to_peer(device_id: &str) -> Result<crate::services::webdav_sync::SyncReport, String> {
+pub async fn lan_push_to_peer(
+    device_id: &str,
+) -> Result<crate::services::webdav_sync::SyncReport, String> {
     let report = lan::push::push_to_peer(device_id).await?;
     let _ = lan::peer_store::mark_peer_seen(device_id);
     Ok(report)
 }
 
-pub async fn lan_send_file_to_peer(device_id: &str, file_path: &str) -> Result<lan::FileTransferResult, String> {
+pub async fn lan_send_file_to_peer(
+    device_id: &str,
+    file_path: &str,
+) -> Result<lan::FileTransferResult, String> {
     let result = lan::transfer::send_file_to_peer(device_id, file_path).await?;
     let _ = lan::peer_store::mark_peer_seen(device_id);
     Ok(result)
@@ -100,7 +112,9 @@ pub async fn lan_send_file_to_peer_with_progress(
     transfer_id: Option<String>,
     progress: Option<lan::FileTransferProgressCallback>,
 ) -> Result<lan::FileTransferResult, String> {
-    let result = lan::transfer::send_file_to_peer_with_progress(device_id, file_path, transfer_id, progress).await?;
+    let result =
+        lan::transfer::send_file_to_peer_with_progress(device_id, file_path, transfer_id, progress)
+            .await?;
     let _ = lan::peer_store::mark_peer_seen(device_id);
     Ok(result)
 }

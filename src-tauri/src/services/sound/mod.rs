@@ -4,8 +4,8 @@ use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
 use std::fs::File;
 use std::io::{BufReader, Cursor};
 use std::path::PathBuf;
-use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::mpsc::{self, RecvTimeoutError, Sender};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -119,14 +119,18 @@ fn audio_thread_loop(rx: mpsc::Receiver<SoundCommand>) {
 
         match rx.recv_timeout(timeout) {
             Ok(cmd) => {
-                if ctx.as_ref().map_or(true, |context| context.device_changed()) {
+                if ctx
+                    .as_ref()
+                    .map_or(true, |context| context.device_changed())
+                {
                     ctx = create_audio_context();
                 }
 
-                let result = ctx.as_mut().map_or(
-                    Err("无音频设备".to_string()),
-                    |context| context.play(&cmd),
-                );
+                let result = ctx
+                    .as_mut()
+                    .map_or(Err("无音频设备".to_string()), |context| {
+                        context.play(&cmd)
+                    });
 
                 if result.is_err() {
                     ctx = create_audio_context();
@@ -177,7 +181,11 @@ fn play_file(handle: &OutputStreamHandle, path: &PathBuf, volume: f32) -> Result
     Ok(sink)
 }
 
-fn play_bytes(handle: &OutputStreamHandle, bytes: &'static [u8], volume: f32) -> Result<Sink, String> {
+fn play_bytes(
+    handle: &OutputStreamHandle,
+    bytes: &'static [u8],
+    volume: f32,
+) -> Result<Sink, String> {
     let sink = Sink::try_new(handle).map_err(|e| e.to_string())?;
     let source = Decoder::new(Cursor::new(bytes)).map_err(|e| format!("解码失败: {}", e))?;
 
@@ -186,7 +194,12 @@ fn play_bytes(handle: &OutputStreamHandle, bytes: &'static [u8], volume: f32) ->
     Ok(sink)
 }
 
-fn play_beep(handle: &OutputStreamHandle, frequency: f32, duration_ms: u64, volume: f32) -> Result<Sink, String> {
+fn play_beep(
+    handle: &OutputStreamHandle,
+    frequency: f32,
+    duration_ms: u64,
+    volume: f32,
+) -> Result<Sink, String> {
     let sink = Sink::try_new(handle).map_err(|e| e.to_string())?;
 
     let sample_rate = 44100u32;
@@ -254,7 +267,7 @@ impl AppSounds {
                 return;
             }
         }
-        
+
         Self::do_play_copy(&settings);
     }
 
@@ -284,7 +297,7 @@ impl AppSounds {
         }
 
         LAST_PASTE_SOUND_TIME_MS.store(current_time_ms(), Ordering::Relaxed);
-        
+
         Self::do_play_paste(&settings);
     }
 
@@ -296,7 +309,7 @@ impl AppSounds {
         }
 
         LAST_PASTE_SOUND_TIME_MS.store(current_time_ms(), Ordering::Relaxed);
-        
+
         Self::do_play_paste(&settings);
     }
 
