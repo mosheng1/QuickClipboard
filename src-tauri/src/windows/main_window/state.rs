@@ -1,5 +1,6 @@
 use parking_lot::RwLock;
 use once_cell::sync::Lazy;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum WindowState {
@@ -54,6 +55,13 @@ impl Default for MainWindowState {
 
 static WINDOW_STATE: Lazy<RwLock<MainWindowState>> = 
     Lazy::new(|| RwLock::new(MainWindowState::default()));
+
+// Prevent a concurrent topmost refresh from re-showing the window while it hides.
+pub(crate) static HIDE_IN_PROGRESS: AtomicBool = AtomicBool::new(false);
+
+pub(crate) fn is_hide_in_progress() -> bool {
+    HIDE_IN_PROGRESS.load(Ordering::SeqCst)
+}
 
 pub fn get_window_state() -> MainWindowState {
     WINDOW_STATE.read().clone()

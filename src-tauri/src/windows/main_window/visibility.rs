@@ -28,6 +28,10 @@ fn capture_window_logical_size(window: &WebviewWindow) -> Result<(u32, u32), Str
     ))
 }
 
+fn set_normal_cursor_passthrough(window: &WebviewWindow, ignored: bool) {
+    let _ = window.set_ignore_cursor_events(ignored);
+}
+
 // 显示主窗口
 pub fn show_main_window(window: &WebviewWindow) {
     if crate::services::system::is_front_app_globally_disabled_from_settings() {
@@ -109,6 +113,7 @@ pub fn toggle_main_window_visibility(app: &AppHandle) {
 }
 
 fn show_normal_window(window: &WebviewWindow) {
+    set_normal_cursor_passthrough(window, false);
     crate::windows::preview_window::resume_preview_after_main_window_show();
 
     let state = super::state::get_window_state();
@@ -155,7 +160,12 @@ fn show_normal_window(window: &WebviewWindow) {
 }
 
 fn should_skip_always_on_top_refresh() -> bool {
+    let state = super::state::get_window_state();
+
     crate::is_context_menu_visible()
+        || super::state::is_hide_in_progress()
+        || state.state != WindowState::Visible
+        || state.is_hidden
 }
 
 #[cfg(target_os = "windows")]
@@ -164,9 +174,13 @@ pub fn refresh_always_on_top(window: &WebviewWindow) -> Result<(), String> {
         return Ok(());
     }
 
+    if !window.is_visible().unwrap_or(false) {
+        return Ok(());
+    }
+
     use windows::Win32::Foundation::HWND;
     use windows::Win32::UI::WindowsAndMessaging::{
-        SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_SHOWWINDOW,
+        SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE,
     };
 
     let hwnd = window
@@ -181,7 +195,7 @@ pub fn refresh_always_on_top(window: &WebviewWindow) -> Result<(), String> {
             0,
             0,
             0,
-            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW,
+            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
         )
         .map_err(|e| format!("提升主窗口置顶顺序失败: {}", e))?;
     }
@@ -215,6 +229,8 @@ fn hide_normal_window(window: &WebviewWindow) {
     crate::windows::preview_window::suppress_preview_for_main_window_hide(&window.app_handle());
     let _ = crate::windows::pin_image_window::close_image_preview(window.app_handle().clone());
     let _ = crate::windows::preview_window::close_preview_window(window.app_handle().clone());
+
+    super::state::HIDE_IN_PROGRESS.store(true, std::sync::atomic::Ordering::SeqCst);
 
     let _ = window.emit("window-hide-animation", ());
 
@@ -271,7 +287,10 @@ fn hide_normal_window(window: &WebviewWindow) {
     }
 
     let _ = window.hide();
+    set_normal_cursor_passthrough(window, true);
+
     set_window_state(WindowState::Hidden);
+    super::state::HIDE_IN_PROGRESS.store(false, std::sync::atomic::Ordering::SeqCst);
     crate::services::memory::schedule_cleanup_after_main_window_hide();
 
     crate::input_monitor::disable_mouse_monitoring();
